@@ -11,7 +11,9 @@ what it would do. It reads the latest run in the run log and:
 2. pulls main in the main checkout; an untracked file in the way is removed
    only when it is byte-identical to origin/main, otherwise it stops;
 3. for each issue whose PR merged, removes the worktrees and branches the log
-   says the run created, never forcing a worktree with uncommitted work.
+   says the run created, never forcing a worktree with uncommitted work;
+4. when all of that succeeded, starts the librarian (Hermes, herd-librarian)
+   in the background, once per run, unless --no-librarian.
 
 Every step skips what is already done, so a crash half-way is fixed by
 running it again.
@@ -19,9 +21,12 @@ running it again.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 import pathlib
+import shlex
+import shutil
 import subprocess
 import sys
 
@@ -148,14 +153,44 @@ def cleanup(main: pathlib.Path, events: list[dict], merged: set[str], apply: boo
     return lines
 
 
+def librarian_command(main: pathlib.Path) -> list[str]:
+    return ["hermes", "-s", "herd-librarian", "-z", f"Run the herd-librarian skill for the repo {main}."]
+
+
+def launch(cmd: list[str], log: pathlib.Path) -> int:
+    """Start `cmd` detached, output to `log`; it outlives this process. Returns its pid."""
+    with log.open("w") as out:
+        proc = subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                start_new_session=True)
+    return proc.pid
+
+
+def start_librarian(main: pathlib.Path, events: list[dict], log_file: pathlib.Path, apply: bool) -> str:
+    if not apply:
+        return "would start the librarian (Hermes herd-librarian)"
+    if any(e["kind"] == "note" and e.get("text", "").startswith(("librarian started", "librarian:"))
+           for e in events):
+        return "librarian already started for this run; not starting it again"
+    cmd = librarian_command(main)
+    if not shutil.which("hermes"):
+        return "librarian NOT started: hermes is not on PATH; run: " + shlex.join(cmd)
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    report = log_file.parent / f"librarian-{stamp}.log"
+    pid = launch(cmd, report)
+    runlog.append(main, "note", {"text": f"librarian started (log: {report})"}, path=log_file)
+    return f"librarian started in the background (pid {pid}); its report: {report}"
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--repo", default=".")
     ap.add_argument("--log")
     ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--no-librarian", action="store_true")
     a = ap.parse_args(argv)
     repo = pathlib.Path(a.repo)
-    events = runlog.latest(runlog.read_file(pathlib.Path(a.log) if a.log else runlog.log_path(repo)))
+    log_file = pathlib.Path(a.log) if a.log else runlog.log_path(repo)
+    events = runlog.latest(runlog.read_file(log_file))
     main_dir = main_checkout(repo)
     out = [] if a.apply else ["DRY RUN (pass --apply to act)"]
     merge_lines, merged, merges_ok = merge_prs(events, gh_runner(main_dir), a.apply)
@@ -165,6 +200,8 @@ def main(argv: list[str] | None = None) -> int:
     if pulled:
         out += cleanup(main_dir, events, merged, a.apply)
     out.append("next: archive the merged openspec changes on a chore/ branch (the lead's step)")
+    if merges_ok and pulled and not a.no_librarian:
+        out.append(start_librarian(main_dir, events, log_file, a.apply))
     for ln in out:
         print(ln)
     return 0 if merges_ok and pulled else 1

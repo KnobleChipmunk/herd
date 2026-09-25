@@ -354,7 +354,7 @@ lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
        findings? → builder fixes → gates → reviewer re-signs → DONE again → re-review the delta
        clean?    → commit on branch → push → open PR, same turn
        → RETRO: ask all three agents "what would you improve in the skill?"
-       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + "then run herd-librarian in Hermes"
+       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + "the librarian starts itself after --apply"
        (user runs merge_stack.py, then --apply: merge in order, pull, clean up)
        → openspec archive on a chore branch, pushed and PR'd unasked
 ```
@@ -442,14 +442,17 @@ command. `status` shows each issue's progress and what is still open;
 
 Post-mortem belongs to the librarian, not to the lead's last turn: the lead's
 context may not survive the night, and the librarian runs on the local model
-with nothing else waiting. Once the operator has run `merge_stack.py
---apply`, they start Hermes and run its `herd-librarian` skill (versioned in
-this repo at `hermes/herd-librarian/`). It appends one row per build to the
+with nothing else waiting. `merge_stack.py --apply` starts it: when the
+merges, the pull and the cleanup all succeed, it launches Hermes with the
+`herd-librarian` skill (versioned in this repo at `hermes/herd-librarian/`)
+in the background, once per run, and prints where its report goes; the run
+log records the start, so a re-run does not file everything twice.
+`--no-librarian` skips it. It appends one row per build to the
 vault's `herd-ledger.md`, files every friction line and retro item under a
 class in `friction-ledger.md`, and writes a proposal to `proposals/` when a
 class reaches two events. It commits nothing; a proposal becomes a change to
 this skill or its tools only through a PR the operator merges. The closing
-report ends with that instruction.
+report ends with the merge_stack command.
 
 ## Monitoring
 
@@ -489,8 +492,8 @@ a force-push are NOT covered and still stop and ask.
   pulls main, removing an untracked spec copy only when it is byte-identical
   to what merged; and removes the worktrees and branches the run log says
   the run created, for merged issues only, never forcing one with
-  uncommitted work. Re-running it is safe, so a crash half-way is fixed by
-  running it again. One PR by hand is still `env -u GH_TOKEN gh pr merge N
+  uncommitted work; then it starts the librarian in the background.
+  Re-running it is safe, so a crash half-way is fixed by running it again. One PR by hand is still `env -u GH_TOKEN gh pr merge N
   --merge --delete-branch` (the session token lacks merge scope).
 - **Archive** — `openspec archive <name> --yes` on a `chore/` branch, then
   pushed and PR'd unasked like the build branch. Pushed to `main` DIRECTLY
