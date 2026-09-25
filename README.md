@@ -37,6 +37,11 @@ The `/herd` skill and the toolkit it runs on.
     command: merge the run's PRs in order, pull main, and remove what the
     run log says the run created. A dry run without `--apply`; safe to
     re-run.
+  - `librarian.py` is the post-run librarian's deterministic half: ledger
+    rows counted from the run log and live gh (`ledger-rows`,
+    `append-ledger`), the run's friction lines and retro files
+    (`friction`), and filing one friction line under a class in the vault's
+    friction ledger with the class's event count (`friction-append`).
   - `wait_file.sh` and `watch_review.sh` wait on the files agents write,
     which is the reliable completion signal.
 

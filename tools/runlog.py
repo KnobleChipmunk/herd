@@ -21,15 +21,17 @@ import sys
 from herdtool import git_common_dir
 
 KINDS = ("run-start", "run-end", "spec-approved", "worktree-created", "branch-created", "scratch-created",
-         "dispatched", "review-round", "done", "blocked", "pr-opened", "fallback", "friction",
-         "decision-needed", "decision-made", "note")
+         "plan-review", "dispatched", "review-round", "ruling", "gate-miss", "lead-finding", "done", "blocked",
+         "pr-opened", "fallback", "friction", "decision-needed", "decision-made", "note")
 REQUIRED = {"worktree-created": ("worktree",), "scratch-created": ("worktree",), "branch-created": ("branch",),
             "pr-opened": ("pr", "branch"), "friction": ("agent", "text"), "decision-needed": ("text",),
-            "blocked": ("text",), "fallback": ("agent", "model")}
+            "blocked": ("text",), "fallback": ("agent", "model"), "spec-approved": ("tier",),
+            "plan-review": ("round", "verdict"), "review-round": ("round", "verdict"), "ruling": ("text",),
+            "gate-miss": ("text",), "lead-finding": ("text",)}
 # Events that move an issue forward; friction, fallbacks and notes are side channels.
-PROGRESS = ("spec-approved", "worktree-created", "dispatched", "review-round", "done", "blocked", "pr-opened",
-            "decision-needed", "decision-made")
-FIELDS = ("issue", "pr", "branch", "worktree", "agent", "model", "round", "verdict", "text")
+PROGRESS = ("spec-approved", "plan-review", "worktree-created", "dispatched", "review-round", "done", "blocked",
+            "pr-opened", "decision-needed", "decision-made")
+FIELDS = ("issue", "pr", "branch", "worktree", "agent", "model", "tier", "round", "verdict", "text")
 
 
 def log_path(repo: pathlib.Path) -> pathlib.Path:
