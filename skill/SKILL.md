@@ -1,9 +1,9 @@
 ---
 name: herd
-description: Run the Herdr three-agent build loop — the lead (this session) orchestrates, pre-executes, and writes the openspec change, a local qwen (via pi) builds it in a worktree, a pi reviewer (gpt-5.6-sol) reviews round-robin until clean, and the lead runs the `reviewer` skill (audience: ai) as the final pass, then collects a skill retrospective from every agent. Use when the user says "/herd", "herd #N", "run the herd on <issue|goal>", or asks to build an issue with qwen via Herdr. Requires HERDR_ENV=1. Subagents are replaced by a pane below this one — pi (gpt-5.6-sol, high) for plan review, opus for every other role.
+description: Run the Herdr three-agent build loop — the lead (this session) orchestrates, pre-executes, and writes the openspec change, a local builder model (via pi) builds it in a worktree, a Codex build reviewer reviews round-robin until clean, and the lead runs the `reviewer` skill (audience: ai) as the final pass, then collects a skill retrospective from every agent. Use when the user says "/herd", "herd #N", "run the herd on <issue|goal>", or asks to build an issue with the local builder via Herdr. Requires HERDR_ENV=1. Subagents are replaced by a pane below this one — Codex for plan review, claude for every other role. Models per role are in the Roster table.
 ---
 
-# Herd — the lead orchestrates, qwen builds, pi reviews
+# Herd — the lead orchestrates, pi builds, Codex reviews
 
 One session — **the lead, this one** — talks to the user, writes the spec,
 pre-executes it, rules on disputes, and does the final review. Everything
@@ -16,9 +16,32 @@ both builds byte-identical to the reference and both reviews clean in ONE
 round; a mid-review shared-infra defect forced a prerequisite carve-out.
 Rules marked **(#321)** come from that retrospective.
 
-**Lead model: Opus 5.5** (`claude-opus-5-5`, since 2026-09-25; Fable before
-that). This line is the one place the lead's model is named — the rest of
-the skill says "the lead". Change it here when the lead changes.
+## Roster
+
+This table is the one place models are named; the rest of the skill says
+"the lead", "the builder", "the plan reviewer", "the build reviewer". Change
+a model here and nowhere else.
+
+| Role | Harness | Model | Pane name |
+|---|---|---|---|
+| Lead | Claude Code | Opus 5.5 (`claude-opus-5-5`; Fable before 2026-09-25) | — (this session) |
+| Builder | pi | Swift 1.5 27B, local (`swift15-qwen3.8-128k:latest`, a Qwen 3.8 fine-tune) | `pi_build` |
+| Plan reviewer | Codex | GPT-6 Astra (`gpt-6-astra`), high effort | `codex_plan_reviewer` |
+| Build reviewer | Codex | GPT-6 Sol (`gpt-6-sol`), high effort | `codex_review` |
+| Fallback reviewer | Claude Code | Fable (`claude-fable-5-1`), else Sonnet 5 (`claude-sonnet-5`) | `claude_plan_reviewer` / `claude_review` |
+
+Why the two reviewers differ: plan review is where the herd catches real
+defects and runs one or two rounds per issue, so it gets the strongest
+model; build review runs more often against builds that match the
+pre-executed reference, so it gets the faster model and spends less of the
+Codex subscription. The plan reviewer falls back Astra → Sol → Claude; the
+build reviewer falls back Sol → Claude. The fallback is never Opus: an
+Opus reviewer checking an Opus lead is the same model checking itself. When
+a fallback runs, say so in the PR.
+
+Reviewers run in the Codex harness, not through pi. The #321 rule that ran
+every role through pi began as an 08-23 trial for the builder only; the
+reviewers moved with it and were never compared (2026-09-25).
 
 Load the `herdr` skill first; the `herdr` CLI is the authority on syntax.
 `test "${HERDR_ENV:-}" = 1` or stop — this skill does not work outside Herdr.
@@ -35,7 +58,7 @@ message to the user, and run that tier.
 | Spec | proposal (Grounded facts + Non-goals) + tasks.md; design.md only if a decision was actually made; spec delta still required by openspec | all four files |
 | Pre-execution | The lead applies the tasks in a scratch worktree and runs the touched tests + mutations before plan review (#321) | same, plus the full suite once and EVERY mutation driven |
 | Plan review | **one** round; the reviewer reads, re-derives the gates, and reasons — it never executes | rounds until APPROVE; the reviewer re-derives and challenges, it does NOT re-execute — the lead's pre-execution evidence is cited in the brief (#321) |
-| Build | qwen builds from the byte-synced fences | qwen builds from the byte-synced fences |
+| Build | the builder builds from the byte-synced fences | the builder builds from the byte-synced fences |
 | Review rounds | one round, cap 2 | cap 2 (+1 on ruling) — pre-execution moved the effort upstream (#321) |
 | Final review | read the diff; run only the touched test files + the spec's grep gate; full suite only if the diff reaches a shared module | `reviewer` skill, direct, audience ai; diff the build against the pre-executed reference worktree first — byte-identical is the expected result (#321) |
 
@@ -45,16 +68,16 @@ the user holds, exclusions) is the same in both tiers.
 ## Topology
 
 All panes live in the lead's tab. The lead keeps focus; every split uses
-`--no-focus` and `--cwd` set explicitly. Every herd role runs through
-`pi` (#321) — the model must be verified from the pane STATUS LINE
-(`herdr agent read <name> --source visible`), never by asking the model.
+`--no-focus` and `--cwd` set explicitly. The model must be verified from
+the pane STATUS LINE (`herdr agent read <name> --source visible`), never by
+asking the model.
 
 | Slot | Position | Agent | Name | Job |
 |---|---|---|---|---|
 | 0 | the calling pane | claude (lead) | — | user contact, spec, pre-execution, rulings, final review, commit |
-| 1 | top-right of the lead | pi (ollama qwen) | `pi_build` | builder, in its own worktree |
-| 2 | bottom-right of the lead | pi (gpt-5.6-sol high) | `pi_review` | reviewer, round-robin with the builder |
-| 3 | below the lead | pi (gpt-5.6-sol high) for plan review, else claude via `opus` alias | `pi_plan_reviewer` / `opus_<role>` | stands in for ANY subagent the lead would spawn; one occupant at a time |
+| 1 | top-right of the lead | pi (builder model) | `pi_build` | builder, in its own worktree |
+| 2 | bottom-right of the lead | codex (build reviewer model) | `codex_review` | build reviewer, round-robin with the builder |
+| 3 | below the lead | codex (plan reviewer model) for plan review, else claude | `codex_plan_reviewer` / `opus_<role>` | stands in for ANY subagent the lead would spawn; one occupant at a time |
 
 **Reuse rule.** Before creating a pane, `herdr agent list`. If a live agent
 of the right kind already sits in the slot (same tab, right position per
@@ -62,22 +85,35 @@ of the right kind already sits in the slot (same tab, right position per
 reuse it. Otherwise split and start. Panes are left open at the end — the
 user can watch and re-prompt them.
 
-Creating the panes, once (verified 2026-08-23/25):
+Creating the panes, once (the Codex invocation is the pre-08-23 one, with
+the roster's models):
 
 ```bash
 herdr pane split --current --direction right --cwd "$PWD" --no-focus     # → slot 1 (read .result.pane.pane_id)
 herdr pane split --pane <slot1> --direction down --cwd "$PWD" --no-focus  # → slot 2
 herdr pane split --current --direction down --cwd "$PWD" --no-focus       # → slot 3
-herdr agent start pi_build         --kind pi --pane <slot1> -- --provider ollama --model qwen3.8-128k:latest
-herdr agent start pi_review        --kind pi --pane <slot2> -- --provider openai-codex --model gpt-5.6-sol --thinking high
-herdr agent start pi_plan_reviewer --kind pi --pane <slot3> -- --provider openai-codex --model gpt-5.6-sol --thinking high
+herdr agent start pi_build            --kind pi    --pane <slot1> -- --provider ollama --model swift15-qwen3.8-128k:latest
+herdr agent start codex_review        --kind codex --pane <slot2> -- -m gpt-6-sol -c model_reasoning_effort=high
+herdr agent start codex_plan_reviewer --kind codex --pane <slot3> -- -m gpt-6-astra -c model_reasoning_effort=high
 ```
 
-Status lines read `(ollama) qwen3.8-128k:latest • medium` and
-`(openai-codex) gpt-5.6-sol • high`. Both `openai` and `openai-codex`
-report ready for gpt-5.6-sol; `openai-codex` reuses the codex OAuth.
-`pi --list-models <search>` shows what is reachable without starting
-anything.
+Status lines: pi reads `(ollama) swift15-qwen3.8-128k:latest • medium`;
+Codex shows the model and reasoning effort (its `tui.status_line` includes
+`model-with-reasoning`). The Codex CLI lists models the ChatGPT login
+refuses, so a listed model is not an available one. Probe each reviewer
+model once before its first review, and take the roster's fallback on a
+refusal or a usage-limit error:
+
+```bash
+codex exec -m <model> "Reply with exactly: OK"
+```
+
+**Fallback reviewer** (roster's last row), in the reviewer's own slot:
+
+```bash
+herdr agent start claude_review --kind claude --pane <slot> -- \
+  --dangerously-skip-permissions --model claude-fable-5-1    # else claude-sonnet-5
+```
 
 **Slot 3 for every other subagent role** (`opus_explore`, `opus_debug`, …):
 
@@ -90,7 +126,7 @@ herdr agent start opus_<role> --kind claude --pane <slot3> -- \
 The slot holds one agent at a time. Same kind, next role: rename and
 re-prompt. Different kind: `herdr agent prompt <name> "/quit"` (pi/codex)
 or `"/exit"` (claude), then `agent start` the replacement in the same
-pane. Multiple pi agents are live at once — always target by NAME, never
+pane. Several agents of one kind can be live at once — always target by NAME, never
 by kind.
 
 Prompts to any pane agent: write multi-line or quote-heavy prompts to a
@@ -219,14 +255,14 @@ them.
   operator's Hard Constraints.
 - **The full suite runs once per build, by the builder (#330).** Its
   literal tail lives in the handoff (the lead's pre-execution run of the
-  suite is separate and earlier). The plan reviewer, pi_review, and
+  suite is separate and earlier). The plan reviewer, codex_review, and
   the lead's final pass run the touched test files plus the grep gate; any of
   them re-runs the full suite only when the handoff's tail is missing or
   does not match the gate expectation.
 - **Retrospective, after all agents report DONE (#321).** Once the final
   review is clean and the PR is pushed, and before the closing report:
-  prompt EACH live herd agent (`pi_build`, `pi_review`,
-  `pi_plan_reviewer`) with exactly — "What would you improve in the herd
+  prompt EACH live herd agent (`pi_build`, `codex_review`,
+  `codex_plan_reviewer`) with exactly — "What would you improve in the herd
   skill after this run? Reply with concrete, numbered items grounded in
   what you actually hit; write them to RETRO-<id>-<yourname>.md in the
   repo root and reply with only the path." The lead adds its own items the
@@ -238,7 +274,7 @@ them.
 **pi_build (builder).** Works ONLY in its worktree. Tests first, red,
 then implementation, then gates (pytest + ruff + mypy + the spec's grep
 gate), then the mutation drives. Writes `HANDOFF-<id>.md`. Then:
-1. Prompts `pi_review` with the worktree path, spec path, handoff path,
+1. Prompts `codex_review` with the worktree path, spec path, handoff path,
    round number, and the sentinel contract (via the sed'd per-round
    prompt file). `--wait --timeout 540000`, re-waiting on timeout.
 2. Reads the review file; fixes every CONFIRMED finding; re-runs ALL
@@ -251,7 +287,7 @@ gate), then the mutation drives. Writes `HANDOFF-<id>.md`. Then:
 The builder never contacts the lead between dispatch and that DONE except
 `BLOCKED:`. It never commits, pushes, or leaves the worktree.
 
-**pi_review (reviewer).** Reads spec + handoff, reviews the worktree diff
+**codex_review (build reviewer).** Reads spec + handoff, reviews the worktree diff
 against the branch base named in its prompt, runs the **touched** test
 files itself (not the full suite — the handoff carries that tail
 verbatim), reports only CONFIRMED defects with file:line and an exact
@@ -267,14 +303,14 @@ sign off: `REVIEW CLEAN for <id> after N rounds`.
 lead:  pick + tier → measure gates → spec (text anchors)
      → PRE-EXECUTE in a scratch worktree: RED → GREEN → gates → all mutations,
        fold defects, regenerate fences, assert fence==file
-     → pi_plan_reviewer (small: 1 round; full: until APPROVE; re-derive, never re-execute;
+     → codex_plan_reviewer (small: 1 round; full: until APPROVE; re-derive, never re-execute;
        disposition-numbered re-review prompts; re-execute after every fold)
      → post the spec summary AND dispatch, same turn: worktree + briefing → prompt pi_build
        (prerequisite found mid-review? carve it out, loop it first, stack the branch)
-qwen:  tests red → impl → gates → mutations → HANDOFF → review round 1
-pi_review: REVIEW-round-1 (FINDINGS: n)       ┐
-qwen:  fix → gates → HANDOFF → round 2        ┘ … until REVIEW CLEAN (cap 2, +1 on ruling)
-pi_review: "REVIEW CLEAN" → lead;  qwen: "DONE: …" → lead
+pi_build:  tests red → impl → gates → mutations → HANDOFF → review round 1
+codex_review: REVIEW-round-1 (FINDINGS: n)   ┐
+pi_build:  fix → gates → HANDOFF → round 2   ┘ … until REVIEW CLEAN (cap 2, +1 on ruling)
+codex_review: "REVIEW CLEAN" → lead;  pi_build: "DONE: …" → lead
 lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
        findings? → builder fixes → gates → reviewer re-signs → DONE again → re-review the delta
        clean?    → commit on branch → push → open PR, same turn
@@ -413,7 +449,7 @@ committing.
   guarantees for edge cases the design explicitly traded away. Rule early.
 - Foreground `herdr … --wait` dies at the Bash 10-min cap and the wait is
   lost (#330, twice). Background it — see "Long agent turns" above (#321).
-- qwen may stop at an "Always allow /tmp/*" permission dialog on its first
+- The builder (pi) may stop at an "Always allow /tmp/*" permission dialog on its first
   temp-file write; the pane shows `blocked`. Read with `--source visible`,
   `herdr agent send-keys pi_build enter`. Have the briefing's sed write
   into the worktree root instead of /tmp to avoid it.
