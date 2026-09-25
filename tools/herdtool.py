@@ -173,8 +173,12 @@ def restore_inflight(w: pathlib.Path) -> str | None:
     if not journal.exists():
         return None
     record = json.loads(journal.read_text(encoding="utf-8"))
-    (w / record["path"]).write_text(record["original"], encoding="utf-8")
     journal.unlink()
+    target = (w / record["path"]).resolve()
+    # The journal is data on disk: never let it name a file outside the tree.
+    if not target.is_relative_to(w.resolve()):
+        return f"REFUSED an interrupted-drive journal naming {record['path']}, outside the tree"
+    target.write_text(record["original"], encoding="utf-8")
     return f"RESTORED {record['path']}, left mutated by an interrupted drive"
 
 
@@ -203,6 +207,7 @@ def run_mutations(w: pathlib.Path, muts: list, py: str) -> tuple[list[str], int]
     restored = restore_inflight(w)
     if restored:
         lines.append(restored)
+        failures += restored.startswith("REFUSED")
     before = porcelain(w)
     before_content = content_hashes(w)
     for name, rel, old, new, test in muts:

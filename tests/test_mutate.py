@@ -192,3 +192,17 @@ def test_a_mutation_an_interrupted_drive_left_behind_is_restored_first(build):
     assert lines[1].startswith("M1 KILLED")
     assert calc.read_text() == original
     assert not herdtool.inflight_path(build).exists()
+
+
+def test_a_journal_naming_a_path_outside_the_tree_is_refused(build, tmp_path):
+    """The journal names the file to restore; a path that resolves outside
+    the tree is never written, only reported."""
+    outside = tmp_path / "outside.txt"
+    outside.write_text("keep\n")
+    herdtool.inflight_path(build).write_text(
+        '{"path": "../outside.txt", "original": "overwritten\\n"}', encoding="utf-8")
+    lines, failures = mutate.drive(render_tasks([MUTATIONS[0]]), build)
+    assert lines[0] == "REFUSED an interrupted-drive journal naming ../outside.txt, outside the tree"
+    assert outside.read_text() == "keep\n"
+    assert not herdtool.inflight_path(build).exists()
+    assert failures >= 1
