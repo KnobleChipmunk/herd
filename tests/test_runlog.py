@@ -147,3 +147,25 @@ def test_status_names_the_pr_on_a_later_progress_event(repo_with_worktree, capsy
     add(main, "review-round", "--issue", "421", "--round", "2", "--verdict", "FINDINGS: 1")
     runlog.main(["status", "--repo", str(main)])
     assert capsys.readouterr().out.startswith("#421 review-round FINDINGS: 1 [PR #429]")
+
+
+@pytest.mark.parametrize("kind, args, missing", [
+    ("spec-approved", [], "--tier"),
+    ("plan-review", ["--round", "1"], "--verdict"),
+    ("review-round", ["--round", "1"], "--verdict"),
+    ("ruling", [], "--text"),
+    ("gate-miss", [], "--text"),
+    ("lead-finding", [], "--text"),
+])
+def test_ledger_kinds_require_the_field_their_column_counts(repo_with_worktree, capsys, kind, args, missing):
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    assert add(main, kind, "--issue", "421", *args) == 2
+    assert f"{kind} needs {missing}" in capsys.readouterr().out
+
+
+def test_spec_approved_records_the_tier(repo_with_worktree):
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    assert add(main, "spec-approved", "--issue", "421", "--tier", "small") == 0
+    assert events(main)[-1]["tier"] == "small"
