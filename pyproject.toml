@@ -9,4 +9,4 @@ line-length = 120
 extend-select = ["I"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["herdtool", "mkbrief"]
+known-first-party = ["fencecheck", "herdtool", "mkbrief"]

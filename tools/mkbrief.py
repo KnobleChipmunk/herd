@@ -15,6 +15,8 @@ import subprocess
 
 from herdtool import find_python, main_checkout
 
+FENCECHECK = pathlib.Path(__file__).resolve().parent / "fencecheck.py"
+
 
 def resolve_lead_pane(explicit: str | None) -> str:
     pane = explicit or os.environ.get("HERDR_PANE_ID")
@@ -84,7 +86,9 @@ byte for byte.
 1. Self-review, 10 lines or fewer: what changed, biggest risk, where to look first.
 2. RED tail and GREEN tail (literal).
 3. Full-suite tail, VERBATIM (you run the full suite exactly once).
-4. ruff and mypy last lines; every grep gate's output.
+4. ruff and mypy last lines; every grep gate's output; the fence check's output —
+   `python3 {FENCECHECK} openspec/changes/{change}/tasks.md .` must print
+   `FENCES OK (<n> steps)`; any other line is a deviation to fix before review.
 5. `git diff --stat`.
 6. Sibling sweep result, if tasks.md asks for one.
 7. Mutation log: name, KILLED/SURVIVED, the observed FAILED line.
@@ -132,7 +136,7 @@ Lead rulings in force: RULINGS_PLACEHOLDER
 Do this:
 1. Read the spec, then the handoff, then the diff.
 2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -m pytest <touched test files> -q --no-header`, plus the ruff, mypy and grep gates in tasks.md. Record the commands and their last lines.
-3. Check the build against tasks.md: the fences are byte-exact reference text, so any deviation from a fence is a finding; any edit to a file outside the allowed list is a finding; BUILD-BRIEFING/HANDOFF/REVIEW/CODEX files are coordination files, not findings.
+3. Check the build against tasks.md: the fences are byte-exact reference text, so run `python3 {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — every line it prints other than `FENCES OK` is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; BUILD-BRIEFING/HANDOFF/REVIEW/CODEX files are coordination files, not findings.
 4. Report ONLY CONFIRMED defects — ones you reproduced or can show at file:line — each with an exact fix. Do not propose work the proposal's Non-goals exclude, new subsystems, persistence, or refactors.
 
 Write {w}/REVIEW-{id}-round-ROUND_N.md: what you ran (commands + last lines), what you checked, then numbered findings. End the file with exactly one sentinel line: `FINDINGS: <n>` or `REVIEW CLEAN`. A clean review still lists what it ran.

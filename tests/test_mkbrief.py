@@ -38,6 +38,19 @@ def test_briefing_and_prompt_use_the_given_python(repo_with_worktree):
     assert "PYTHONPATH=src /venvs/x/bin/python -m pytest" in prompt
 
 
+def test_reviewer_prompt_runs_the_fence_checker_instead_of_reading_fences_by_eye(repo_with_worktree):
+    _, wt, _, prompt = brief(repo_with_worktree)
+    cmd = f"python3 {mkbrief.FENCECHECK} {wt}/openspec/changes/fix-x/tasks.md {wt}"
+    assert cmd in prompt
+    assert mkbrief.FENCECHECK.name == "fencecheck.py" and mkbrief.FENCECHECK.is_absolute()
+
+
+def test_briefing_has_the_builder_run_the_fence_checker_into_the_handoff(repo_with_worktree):
+    _, wt, briefing, _ = brief(repo_with_worktree)
+    assert f"python3 {mkbrief.FENCECHECK} openspec/changes/fix-x/tasks.md ." in briefing
+    assert "`FENCES OK (<n> steps)`" in briefing
+
+
 def test_briefing_says_xdist_is_missing_when_it_is(repo_with_worktree):
     _, _, briefing, _ = brief(repo_with_worktree, has_xdist=False)
     assert "`pytest-xdist` is NOT installed. Do not install anything." in briefing

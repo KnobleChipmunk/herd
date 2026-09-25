@@ -8,6 +8,11 @@ The `/herd` skill and the toolkit it runs on.
   - `herdtool.py` applies a plan module to a worktree, drives its mutations,
     checks fence parity and renders `tasks.md`.
   - `mkbrief.py` writes the builder briefing and the reviewer prompt.
+  - `fencecheck.py <tasks.md> <worktree>` checks a build against the
+    byte-exact fences in its `tasks.md` and prints one line per deviation
+    (step, file, why). It needs only `tasks.md`, so the builder runs it
+    before the handoff and the build reviewer runs it instead of reading
+    fences by eye; `mkbrief.py` writes both commands into place.
   - `wait_file.sh` and `watch_review.sh` wait on the files agents write,
     which is the reliable completion signal.
 
