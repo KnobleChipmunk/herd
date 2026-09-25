@@ -22,20 +22,21 @@ This table is the one place models are named; the rest of the skill says
 "the lead", "the builder", "the plan reviewer", "the build reviewer". Change
 a model here and nowhere else.
 
-| Role | Harness | Model | Pane name |
-|---|---|---|---|
-| Lead | Claude Code | Opus 5.5 (`claude-opus-5-5`; Fable before 2026-09-25) | — (this session) |
-| Builder | pi | Swift 1.5 27B, local (`swift15-qwen3.8-128k:latest`, a Qwen 3.8 fine-tune) | `pi_build` |
-| Plan reviewer | Codex | GPT-6 Astra (`gpt-6-astra`), high effort | `codex_plan_reviewer` |
-| Build reviewer | Codex | GPT-6 Sol (`gpt-6-sol`), high effort | `codex_review` |
-| Fallback reviewer | Claude Code | Fable (`--model fable`), else Sonnet (`--model sonnet`); the aliases track the latest version | `claude_plan_reviewer` / `claude_review` |
+| Role | Harness | Model | Pane name | Falls back to |
+|---|---|---|---|---|
+| Lead | Claude Code | Opus 5.5 (`claude-opus-5-5`; Fable before 2026-09-25) | — (this session) | — |
+| Builder | pi | Swift 1.5 27B, local (`swift15-qwen3.8-128k:latest`, a Qwen 3.8 fine-tune) | `pi_build` | — |
+| Plan reviewer | Codex | GPT-6 Astra (`gpt-6-astra`), high effort | `codex_plan_reviewer` | Build reviewer, Fallback reviewer |
+| Build reviewer | Codex | GPT-6 Sol (`gpt-6-sol`), high effort | `codex_review` | Fallback reviewer |
+| Fallback reviewer | Claude Code | Fable (`--model fable`), else Sonnet (`--model sonnet`); the aliases track the latest version | `claude_plan_reviewer` / `claude_review` | — |
 
 Why the two reviewers differ: plan review is where the herd catches real
 defects and runs one or two rounds per issue, so it gets the strongest
 model; build review runs more often against builds that match the
 pre-executed reference, so it gets the faster model and spends less of the
-Codex subscription. The plan reviewer falls back Astra → Sol → Claude; the
-build reviewer falls back Sol → Claude. The fallback is never Opus: an
+Codex subscription. The last column is the fallback chain, read by
+`tools/probe.py`: the plan reviewer falls back Astra → Sol → Claude, the
+build reviewer Sol → Claude. The fallback is never Opus: an
 Opus reviewer checking an Opus lead is the same model checking itself. When
 a fallback runs, say so in the PR.
 
@@ -100,12 +101,12 @@ herdr agent start codex_plan_reviewer --kind codex --pane <slot3> -- -m gpt-6-as
 Status lines: pi reads `(ollama) swift15-qwen3.8-128k:latest • medium`;
 Codex shows the model and reasoning effort (its `tui.status_line` includes
 `model-with-reasoning`). The Codex CLI lists models the ChatGPT login
-refuses, so a listed model is not an available one. Probe each reviewer
-model once before its first review, and take the roster's fallback on a
-refusal or a usage-limit error:
+refuses, so a listed model is not an available one. Before the first
+review of a run, and again after any refusal or usage-limit error mid-run,
+probe the roster and start each pane with the model it names:
 
 ```bash
-codex exec -m <model> "Reply with exactly: OK"
+python3 <herd>/tools/probe.py --log --repo <repo>   # one line per role; FALLBACK lines go to the run log
 ```
 
 **Fallback reviewer** (roster's last row), in the reviewer's own slot:
