@@ -494,7 +494,8 @@ a force-push are NOT covered and still stop and ask.
   the run created, for merged issues only, never forcing one with
   uncommitted work; then it starts the librarian in the background.
   Re-running it is safe, so a crash half-way is fixed by running it again. One PR by hand is still `env -u GH_TOKEN gh pr merge N
-  --merge --delete-branch` (the session token lacks merge scope).
+  --merge` (the session token lacks merge scope); not `--delete-branch`,
+  which fails on the local branch while its worktree exists.
 - **Archive** — `openspec archive <name> --yes` on a `chore/` branch, then
   pushed and PR'd unasked like the build branch. Pushed to `main` DIRECTLY
   only when the user says "override push to main".
