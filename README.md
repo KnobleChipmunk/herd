@@ -33,6 +33,10 @@ The `/herd` skill and the toolkit it runs on.
   - `preflight.py [--need ISSUE:VARIABLE ...]` checks the run is inside
     Herdr, every tool is on PATH, and each needed variable is set, without
     printing values. Part of the skill's pre-run sweep.
+  - `merge_stack.py [--repo PATH] [--apply]` is the operator's morning
+    command: merge the run's PRs in order, pull main, and remove what the
+    run log says the run created. A dry run without `--apply`; safe to
+    re-run.
   - `wait_file.sh` and `watch_review.sh` wait on the files agents write,
     which is the reliable completion signal.
 

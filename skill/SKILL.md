@@ -352,8 +352,8 @@ lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
        findings? → builder fixes → gates → reviewer re-signs → DONE again → re-review the delta
        clean?    → commit on branch → push → open PR, same turn
        → RETRO: ask all three agents "what would you improve in the skill?"
-       → closing report: PR + merge command + quoted retro items for signoff
-       (user merges: env -u GH_TOKEN gh pr merge N --merge --delete-branch)
+       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + quoted retro items
+       (user runs merge_stack.py, then --apply: merge in order, pull, clean up)
        → openspec archive on a chore branch, pushed and PR'd unasked
 ```
 
@@ -462,11 +462,16 @@ the archive `chore/` branch, and a `chore/` branch amending the loop's own
 rules. A push to `main`, a push to any branch this loop did not create, and
 a force-push are NOT covered and still stop and ask.
 
-- **Merge** — the user runs `env -u GH_TOKEN gh pr merge N --merge
-  --delete-branch` (the session token lacks merge scope; never squash in
-  project-mera). Stacked PRs merge in dependency order. The lead then pulls
-  main (diff the main checkout's untracked spec copy against the merged
-  version BEFORE removing it), removes worktrees, deletes branches.
+- **Merge** — the user runs `python3 <herd>/tools/merge_stack.py --repo
+  <repo>` to see the plan, then again with `--apply`. It merges every PR the
+  run opened, in order, with a true merge (never squash in project-mera),
+  stopping at the first one that does not target main or will not merge;
+  pulls main, removing an untracked spec copy only when it is byte-identical
+  to what merged; and removes the worktrees and branches the run log says
+  the run created, for merged issues only, never forcing one with
+  uncommitted work. Re-running it is safe, so a crash half-way is fixed by
+  running it again. One PR by hand is still `env -u GH_TOKEN gh pr merge N
+  --merge --delete-branch` (the session token lacks merge scope).
 - **Archive** — `openspec archive <name> --yes` on a `chore/` branch, then
   pushed and PR'd unasked like the build branch. Pushed to `main` DIRECTLY
   only when the user says "override push to main".

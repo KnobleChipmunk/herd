@@ -36,15 +36,22 @@ def log_path(repo: pathlib.Path) -> pathlib.Path:
     return git_common_dir(repo) / "herd" / "run-log.jsonl"
 
 
-def read(repo: pathlib.Path) -> list[dict]:
-    path = log_path(repo)
+def read_file(path: pathlib.Path) -> list[dict]:
     return [json.loads(ln) for ln in path.read_text().splitlines() if ln] if path.exists() else []
 
 
-def latest_run(repo: pathlib.Path) -> list[dict]:
-    events = read(repo)
+def read(repo: pathlib.Path) -> list[dict]:
+    return read_file(log_path(repo))
+
+
+def latest(events: list[dict]) -> list[dict]:
+    """The events of the last run: from its run-start to the end."""
     starts = [i for i, e in enumerate(events) if e["kind"] == "run-start"]
     return events[starts[-1]:] if starts else []
+
+
+def latest_run(repo: pathlib.Path) -> list[dict]:
+    return latest(read(repo))
 
 
 def append(repo: pathlib.Path, kind: str, fields: dict) -> str | None:
