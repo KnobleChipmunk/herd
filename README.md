@@ -13,6 +13,11 @@ The `/herd` skill and the toolkit it runs on.
     (step, file, why). It needs only `tasks.md`, so the builder runs it
     before the handoff and the build reviewer runs it instead of reading
     fences by eye; `mkbrief.py` writes both commands into place.
+  - `gates.py match "<expected>" <output>` compares a gate by its counts
+    (pytest's warnings and wall time ignored; mypy's error, file and checked
+    counts all count). `gates.py manifest <worktree> <base> --allowed <file>`
+    lists every changed file, untracked ones included, and flags any file
+    outside the allowed list. Coordination files and `SCRATCH-*` are ignored.
   - `wait_file.sh` and `watch_review.sh` wait on the files agents write,
     which is the reliable completion signal.
 

@@ -16,6 +16,7 @@ import subprocess
 from herdtool import find_python, main_checkout
 
 FENCECHECK = pathlib.Path(__file__).resolve().parent / "fencecheck.py"
+GATES = pathlib.Path(__file__).resolve().parent / "gates.py"
 
 
 def resolve_lead_pane(explicit: str | None) -> str:
@@ -25,6 +26,14 @@ def resolve_lead_pane(explicit: str | None) -> str:
     return pane
 
 
+def base_sha(worktree: pathlib.Path, base: str) -> str:
+    r = subprocess.run(["git", "-C", str(worktree), "rev-parse", "--verify", "--quiet", f"{base}^{{commit}}"],
+                       capture_output=True, text=True)
+    if r.returncode:
+        raise SystemExit(f"base is not a git ref in {worktree}: {base}")
+    return r.stdout.strip()
+
+
 def has_xdist(python: str) -> bool:
     return subprocess.run([python, "-c", "import xdist"], capture_output=True).returncode == 0
 
@@ -32,6 +41,7 @@ def has_xdist(python: str) -> bool:
 def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str, gates: str,
                    allowed: str, python: str, lead_pane: str, reviewer: str, has_xdist: bool) -> str:
     main = main_checkout(worktree)
+    sha = base_sha(worktree, base)
     xdist = ("`pytest-xdist` is installed; the gates in tasks.md say whether to use it."
              if has_xdist else "`pytest-xdist` is NOT installed. Do not install anything.")
     return f"""# BUILD BRIEFING — #{id} ({change})
@@ -40,7 +50,7 @@ You are the BUILDER. Work ONLY in this worktree:
 
     {worktree}
 
-Branch `{branch}`, cut from {base}. Do NOT touch `{main}`
+Branch `{branch}`, cut from {base} ({sha}). Do NOT touch `{main}`
 (the main checkout) or any other worktree. Never `git commit`, `git push`,
 `git checkout <file>`, `git stash`, or `git reset`. To undo an edit, re-edit the file.
 
@@ -51,9 +61,13 @@ Branch `{branch}`, cut from {base}. Do NOT touch `{main}`
   `PYTHONPATH=src {python} -m pytest <touched test file> -q --no-header`
 - ruff is on PATH: `ruff check <paths>`.
 - {xdist}
-- Write temporary files into the worktree root, never `/tmp`.
+- Write temporary files into the worktree root, never `/tmp`, and name them `SCRATCH-<anything>`;
+  the reviewer's change list ignores those and flags any other stray file.
 
-## Measured gates (literal last lines; your run must match)
+## Measured gates (your run's COUNTS must match)
+
+Check each with `python3 {GATES} match "<expected line>" <output file>`: it prints
+MATCH, or the counts that differ. pytest's warnings and wall time do not count.
 
 {gates}
 ## The spec — read in this order
@@ -125,10 +139,11 @@ Contact the lead for nothing else.
 def build_reviewer_prompt(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str, python: str,
                           lead_pane: str, **_: object) -> str:
     w = worktree
+    sha = base_sha(worktree, base)
     return f"""You are the REVIEWER for herd build #{id}, review round ROUND_N. Do NOT edit any file except your review file. Do NOT commit.
 
 Worktree (the build under review): {w}
-Branch {branch}; review the diff against its base: run `git -C {w} diff` plus `git -C {w} status --short` (the build is uncommitted; base is {base}).
+Branch {branch}, base {base} at {sha} (the build is uncommitted). List what changed with `python3 {GATES} manifest {w} {sha} --allowed {w}/ALLOWED-{id}.txt` — it includes untracked files, and every OUTSIDE ALLOWED line is a finding. Read the changes with `git -C {w} diff {sha}` plus each untracked file the manifest lists.
 Spec: {w}/openspec/changes/{change}/ (proposal.md, design.md if present, specs/, tasks.md). The spec directory itself is part of the change, not a finding.
 Handoff: {w}/HANDOFF-{id}.md — it carries the full-suite tail verbatim; do NOT re-run the full suite unless that tail is missing or contradicts the gate in tasks.md section 0.
 Lead rulings in force: RULINGS_PLACEHOLDER
@@ -155,9 +170,10 @@ def main(argv: list[str] | None = None) -> None:
     python = find_python(w)
     args = dict(id=a.id, worktree=w, branch=a.branch, base=a.base, change=a.change,
                 gates=pathlib.Path(a.gates_file).read_text(),
-                allowed=pathlib.Path(a.allowed_file).read_text().strip(),
+                allowed=pathlib.Path(a.allowed_file).read_text().rstrip(),
                 python=python, lead_pane=resolve_lead_pane(a.lead_pane), reviewer=a.reviewer,
                 has_xdist=has_xdist(python))
+    (w / f"ALLOWED-{a.id}.txt").write_text(args["allowed"] + f"\n  - `openspec/changes/{a.change}/`\n")
     (w / f"BUILD-BRIEFING-{a.id}.md").write_text(build_briefing(**args))
     (w / f"CODEX-PROMPT-{a.id}.md").write_text(build_reviewer_prompt(**args))
     print("wrote briefing + codex prompt in", w)

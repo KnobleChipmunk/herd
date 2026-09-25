@@ -199,7 +199,9 @@ them.
 - **Measure every gate before writing its expectation (#330), and state
   its baseline (#321).** Run the exact commands the builder will run and
   paste the literal last lines. Gates are "identical to <baseline>" or
-  "<baseline> + the delta you name", never absolute — and when the change
+  "<baseline> + the delta you name", never absolute, and they are compared
+  by counts with `tools/gates.py match` (write the counts, not pytest's
+  whole last line; warnings and wall time do not count) — and when the change
   has a prerequisite, the baseline is the PREREQUISITE's measured state,
   re-measured whenever the prerequisite changes. Include the full-suite
   wall time so the builder does not read a 5-min run as a hang.
@@ -431,7 +433,8 @@ a force-push are NOT covered and still stop and ask.
 ## Exclusions from the commit
 
 `BUILD-BRIEFING-*.md`, `HANDOFF-*.md`, `REVIEW-*-round-*.md`,
-`PLAN-REVIEW-*-round-*.md`, `RETRO-*.md`, `CODEX-*.md` stay untracked.
+`PLAN-REVIEW-*-round-*.md`, `RETRO-*.md`, `CODEX-*.md`, `ALLOWED-*.txt` and
+the builder's `SCRATCH-*` files stay untracked.
 Stage files by name. Check the staged list for env files or secrets before
 committing.
 
