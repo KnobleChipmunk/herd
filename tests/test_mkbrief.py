@@ -147,3 +147,11 @@ def test_briefing_has_the_builder_drive_mutations_with_the_runner(repo_with_work
 def test_reviewer_prompt_re_drives_two_mutations_on_a_scratch_copy(repo_with_worktree):
     _, wt, _, prompt = brief(repo_with_worktree)
     assert f"python3 {mkbrief.MUTATE} {wt}/openspec/changes/fix-x/tasks.md {wt} --scratch --only " in prompt
+
+
+def test_builder_and_reviewer_log_friction_to_the_run_log_under_their_own_names(repo_with_worktree):
+    _, wt, briefing, prompt = brief(repo_with_worktree, reviewer="codex_review")
+    assert (f'python3 {mkbrief.RUNLOG} add friction --repo {wt} --issue 42 --agent pi_build --text "<what cost you'
+            in briefing)
+    assert (f'python3 {mkbrief.RUNLOG} add friction --repo {wt} --issue 42 --agent codex_review --text "<what cost'
+            in prompt)

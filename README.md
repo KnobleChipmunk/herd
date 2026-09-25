@@ -22,6 +22,10 @@ The `/herd` skill and the toolkit it runs on.
     mutations in `tasks.md`: KILLED with the failing test, SURVIVED, VOID
     when an anchor is not unique, TREE CHANGED when a drive left the tree
     different. `--scratch` drives a copy, for reviewers.
+  - `runlog.py add <kind> …` appends one checkpoint to the run log in the
+    repo's git directory; `status`, `created` and `friction` read the latest
+    run back (progress per issue and what is still open, what the run
+    created, and the agents' friction lines).
   - `wait_file.sh` and `watch_review.sh` wait on the files agents write,
     which is the reliable completion signal.
 
