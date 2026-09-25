@@ -35,8 +35,9 @@ The `/herd` skill and the toolkit it runs on.
     printing values. Part of the skill's pre-run sweep.
   - `merge_stack.py [--repo PATH] [--apply]` is the operator's morning
     command: merge the run's PRs in order, pull main, and remove what the
-    run log says the run created. A dry run without `--apply`; safe to
-    re-run.
+    run log says the run created, then start the librarian (Hermes) in the
+    background, once per run (`--no-librarian` skips it). A dry run without
+    `--apply`; safe to re-run.
   - `librarian.py` is the post-run librarian's deterministic half: ledger
     rows counted from the run log and live gh (`ledger-rows`,
     `append-ledger`), the run's friction lines and retro files
@@ -53,8 +54,9 @@ ln -s ~/projects/herd/hermes/herd-librarian ~/.hermes/skills/herd-librarian
 ```
 
 `hermes/herd-librarian/` is the Hermes skill that files a finished run into
-the vault ledgers with `tools/librarian.py`. Its proposals land in
-`proposals/`, which the operator turns into PRs.
+the vault ledgers with `tools/librarian.py`. `merge_stack.py --apply`
+starts it; its report is a `librarian-<time>.log` next to the run log. Its
+proposals land in `proposals/`, which the operator turns into PRs.
 
 ## Configuration
 

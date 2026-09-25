@@ -7,6 +7,15 @@ import pytest
 import merge_stack
 
 
+@pytest.fixture(autouse=True)
+def no_real_librarian(monkeypatch):
+    """No test starts a real Hermes; tests that check the launch record it here."""
+    started = []
+    monkeypatch.setattr(merge_stack, "launch", lambda cmd, log: started.append((cmd, log)) or 4242)
+    monkeypatch.setattr(merge_stack.shutil, "which", lambda name: f"/usr/bin/{name}")
+    return started
+
+
 def git(*args: str, cwd: pathlib.Path) -> str:
     return subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *args], cwd=cwd, check=True,
                           capture_output=True, text=True).stdout
@@ -236,7 +245,7 @@ def test_main_merges_pulls_and_cleans_up_in_one_command(created, monkeypatch, ca
     assert out[0] == "merged PR #429 (#421)"
     assert "pulled main" in out
     assert f"removed worktree {trees / '421'}" in out
-    assert out[-1].startswith("next: archive the merged openspec changes")
+    assert any(ln.startswith("next: archive the merged openspec changes") for ln in out)
 
 
 def test_main_without_apply_is_a_dry_run(created, monkeypatch, capsys):
@@ -265,3 +274,69 @@ def test_main_exits_one_when_the_stack_stops(created, monkeypatch, capsys):
                            events + [{"kind": "pr-opened", "issue": "421", "pr": "429", "branch": "fix/421"}]))
     monkeypatch.setattr(merge_stack, "gh_runner", lambda repo: FakeGH({"429": "CLOSED"}))
     assert merge_stack.main(["--repo", str(main), "--log", str(log), "--apply"]) == 1
+
+
+def write_log(main: pathlib.Path, events: list[dict], extra: list[dict] = ()) -> pathlib.Path:
+    log = main.parent / "run-log.jsonl"
+    log.write_text("".join(json.dumps(e) + "\n" for e in [*events, *extra,
+                   {"kind": "pr-opened", "issue": "421", "pr": "429", "branch": "fix/421"}]))
+    return log
+
+
+def test_a_successful_apply_starts_the_librarian_in_the_background(created, monkeypatch, capsys, no_real_librarian):
+    main, _, events = created
+    log = write_log(main, events)
+    monkeypatch.setattr(merge_stack, "gh_runner", lambda repo: FakeGH({"429": "OPEN"}))
+    assert merge_stack.main(["--repo", str(main), "--log", str(log), "--apply"]) == 0
+    (cmd, librarian_log), = no_real_librarian
+    assert cmd[:4] == ["hermes", "-s", "herd-librarian", "-z"] and str(main) in cmd[4]
+    assert librarian_log.parent == log.parent and librarian_log.name.startswith("librarian-")
+    out = capsys.readouterr().out.splitlines()
+    assert out[-1] == f"librarian started in the background (pid 4242); its report: {librarian_log}"
+    assert json.loads(log.read_text().splitlines()[-1])["text"].startswith("librarian started")
+
+
+def test_a_rerun_does_not_start_the_librarian_twice(created, monkeypatch, capsys, no_real_librarian):
+    main, _, events = created
+    log = write_log(main, events, [{"kind": "note", "text": "librarian started (log: x)"}])
+    monkeypatch.setattr(merge_stack, "gh_runner", lambda repo: FakeGH({"429": "MERGED"}))
+    merge_stack.main(["--repo", str(main), "--log", str(log), "--apply"])
+    assert no_real_librarian == []
+    assert capsys.readouterr().out.splitlines()[-1] == "librarian already started for this run; not starting it again"
+
+
+def test_no_librarian_skips_it(created, monkeypatch, capsys, no_real_librarian):
+    main, _, events = created
+    log = write_log(main, events)
+    monkeypatch.setattr(merge_stack, "gh_runner", lambda repo: FakeGH({"429": "OPEN"}))
+    merge_stack.main(["--repo", str(main), "--log", str(log), "--apply", "--no-librarian"])
+    assert no_real_librarian == []
+    assert "librarian" not in capsys.readouterr().out.splitlines()[-1]
+
+
+def test_a_stopped_stack_does_not_start_the_librarian(created, monkeypatch, no_real_librarian):
+    main, _, events = created
+    log = write_log(main, events)
+    monkeypatch.setattr(merge_stack, "gh_runner", lambda repo: FakeGH({"429": "CLOSED"}))
+    merge_stack.main(["--repo", str(main), "--log", str(log), "--apply"])
+    assert no_real_librarian == []
+
+
+def test_a_dry_run_says_it_would_start_the_librarian(created, monkeypatch, capsys, no_real_librarian):
+    main, _, events = created
+    log = write_log(main, events)
+    monkeypatch.setattr(merge_stack, "gh_runner", lambda repo: FakeGH({"429": "OPEN"}))
+    merge_stack.main(["--repo", str(main), "--log", str(log)])
+    assert no_real_librarian == []
+    assert capsys.readouterr().out.splitlines()[-1] == "would start the librarian (Hermes herd-librarian)"
+
+
+def test_without_hermes_it_says_how_to_run_the_librarian_by_hand(created, monkeypatch, capsys, no_real_librarian):
+    main, _, events = created
+    log = write_log(main, events)
+    monkeypatch.setattr(merge_stack, "gh_runner", lambda repo: FakeGH({"429": "OPEN"}))
+    monkeypatch.setattr(merge_stack.shutil, "which", lambda name: None)
+    merge_stack.main(["--repo", str(main), "--log", str(log), "--apply"])
+    assert no_real_librarian == []
+    last = capsys.readouterr().out.splitlines()[-1]
+    assert last.startswith("librarian NOT started: hermes is not on PATH; run: hermes -s herd-librarian -z ")

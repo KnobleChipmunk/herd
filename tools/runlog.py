@@ -56,8 +56,9 @@ def latest_run(repo: pathlib.Path) -> list[dict]:
     return latest(read(repo))
 
 
-def append(repo: pathlib.Path, kind: str, fields: dict) -> str | None:
-    """Append one event; return why it was refused, or None."""
+def append(repo: pathlib.Path, kind: str, fields: dict, path: pathlib.Path | None = None) -> str | None:
+    """Append one event to the repo's log (or to `path`); return why it was refused, or None."""
+    path = path or log_path(repo)
     missing = [f for f in REQUIRED.get(kind, ()) if not fields.get(f)]
     if missing:
         return f"{kind} needs --{missing[0]}"
@@ -65,12 +66,11 @@ def append(repo: pathlib.Path, kind: str, fields: dict) -> str | None:
     if kind == "run-start":
         run = now
     else:
-        run_events = latest_run(repo)
+        run_events = latest(read_file(path))
         if not run_events:
             return "no run-start in the log; start a run first"
-        run = run_events[0]["run"]
+        run = run_events[0].get("run", now)
     event = {"ts": now, "run": run, "kind": kind, **{k: v for k, v in fields.items() if v}}
-    path = log_path(repo)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
     try:

@@ -13,8 +13,9 @@ metadata:
 
 # Herd librarian
 
-Run this after a herd run is finished and the operator has run
-`merge_stack.py --apply`. You turn the run log into ledger rows and friction
+`merge_stack.py --apply` starts this in the background once a herd run's
+PRs are merged and the workspace is clean; the operator can also start it
+by hand. You turn the run log into ledger rows and friction
 lines in the vault, and draft proposals when a friction class recurs. You
 write records and proposals. You never change code, the herd skill, or git.
 
