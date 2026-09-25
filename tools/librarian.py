@@ -78,12 +78,20 @@ def render_row(row: dict) -> str:
     return "| " + " | ".join(row[c] for c in COLUMNS) + " |"
 
 
+def countable(row: dict) -> bool:
+    """A row the ledger can hold: its build recorded a spec-approved tier, so its counts are real."""
+    return row["tier"] != "?"
+
+
 def append_rows(ledger: pathlib.Path, new_rows: list[dict]) -> int:
-    """Insert rows after the table's last row; a row whose date, repo and ticket are there is skipped."""
+    """Insert countable rows after the table's last row, skipping any whose date, repo and ticket are there."""
     lines = ledger.read_text().splitlines()
     last = max(i for i, ln in enumerate(lines) if ln.startswith("|"))
     present = {tuple(c.strip() for c in ln.strip("|").split("|")[:3]) for ln in lines if ln.startswith("|")}
-    fresh = [render_row(r) for r in new_rows if (r["date"], r["repo"], r["ticket"]) not in present]
+    fresh = [render_row(r) for r in new_rows
+             if countable(r) and (r["date"], r["repo"], r["ticket"]) not in present]
+    if not fresh:
+        return 0
     ledger.write_text("\n".join(lines[:last + 1] + fresh + lines[last + 1:]) + "\n")
     return len(fresh)
 
@@ -168,8 +176,13 @@ def main(argv: list[str] | None = None) -> int:
         for r in table:
             print(render_row(r))
     elif a.cmd == "append-ledger":
-        print(f"appended {append_rows(pathlib.Path(a.ledger) if a.ledger else HERD_LEDGER, table)} rows")
+        added = append_rows(pathlib.Path(a.ledger) if a.ledger else HERD_LEDGER, table)
+        skipped = sum(not countable(r) for r in table)
+        print(f"appended {added} rows" + (f"; skipped {skipped} with no review counts (no spec-approved)"
+                                          if skipped else ""))
     else:
+        if events:
+            print(f"run {events[0]['run']}: {events[0].get('text', '(no description)')}")
         for ln in runlog.status(events):
             print(ln)
         for r in table:
