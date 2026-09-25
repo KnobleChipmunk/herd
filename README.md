@@ -30,6 +30,9 @@ The `/herd` skill and the toolkit it runs on.
     sends each candidate in a role's fallback chain a one-line request
     through its own harness, and prints the model each role will use;
     fallbacks are logged to the run log.
+  - `preflight.py [--need ISSUE:VARIABLE ...]` checks the run is inside
+    Herdr, every tool is on PATH, and each needed variable is set, without
+    printing values. Part of the skill's pre-run sweep.
   - `wait_file.sh` and `watch_review.sh` wait on the files agents write,
     which is the reliable completion signal.
 

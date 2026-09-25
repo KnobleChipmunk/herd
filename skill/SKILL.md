@@ -47,6 +47,37 @@ reviewers moved with it and were never compared (2026-09-25).
 Load the `herdr` skill first; the `herdr` CLI is the authority on syntax.
 `test "${HERDR_ENV:-}" = 1` or stop — this skill does not work outside Herdr.
 
+## Before an unattended run — the sweep
+
+The 09-21 run stopped twice on a missing API key and left three decisions
+for the morning that could have been asked the night before. Before the
+user leaves, and before the first dispatch:
+
+1. **Queue.** List the issues in run order. Read each issue, its comments,
+   and the code its spec will touch.
+2. **Probe.** `python3 <herd>/tools/probe.py --log --repo <repo>` (see
+   Topology), after `runlog.py add run-start`.
+3. **Preflight.** `python3 <herd>/tools/preflight.py --need <issue>:<VAR> …`
+   with every credential any queued issue needs (an eval run, an API call).
+   It reports set or missing, never values.
+4. **Decisions.** For every issue, list each call only the user can make
+   that the issue could hit: behaviour the guild would notice, a cost,
+   budget or model tier, a data source, a scope cut ("part 1 only?"). And
+   for each pair on a stack, whether issue N+1 changes something issue N's
+   tests rely on (#422 turned #421's rejected payloads into accepted ones).
+5. **Ask once.** Put every decision, every missing credential and every
+   coupling in ONE message. Record each answer with `runlog.py add
+   decision-made --issue <id> --text "<answer>"`. An issue whose question
+   is unanswered starts parked.
+
+During the run, an issue that hits a decision nobody foresaw gets
+`runlog.py add decision-needed --issue <id> --text "<the question>"` and is
+parked; the loop moves to the next issue that does not depend on it. On a
+linear stack every later issue depends on the parked one, so the stack ends
+there: start a new stack from `main` with the independent issues, or stop if
+none remain. The closing report opens with the `OPEN` lines of
+`runlog.py status`.
+
 ## Size tier — decide at pick time (#330)
 
 The loop's fixed cost (spec + plan review + worktree + briefing + review +
@@ -226,9 +257,10 @@ them.
   plan-review record, the gates — and in the SAME turn creates the
   worktree and prompts the builder. Do not end a turn on the summary
   waiting for "go". The user redirects mid-build if they want something
-  different. Two things still stop the loop cold: a decision only the user
-  can make (a product call, a behaviour the guild would notice), and
-  anything in the operator gates below. Say which one, and wait.
+  different. Two things still stop an issue: a decision only the user can
+  make (a product call, a behaviour the guild would notice), and anything
+  in the operator gates below. With the user present, say which one and
+  wait. Unattended, park that issue and carry on (see the sweep).
 - Creates the build worktree, writes the briefing, prompts `pi_build`.
 - Rules on escalations (BLOCKED from the builder). A ruling is one message
   to the builder, and a sentence the builder must relay to the reviewer.
