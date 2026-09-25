@@ -49,7 +49,12 @@ The `/herd` skill and the toolkit it runs on.
 
 ```bash
 ln -s ~/projects/herd/skill ~/.claude/skills/herd
+ln -s ~/projects/herd/hermes/herd-librarian ~/.hermes/skills/herd-librarian
 ```
+
+`hermes/herd-librarian/` is the Hermes skill that files a finished run into
+the vault ledgers with `tools/librarian.py`. Its proposals land in
+`proposals/`, which the operator turns into PRs.
 
 ## Configuration
 

@@ -165,3 +165,42 @@ def test_run_level_retros_are_listed_apart_from_issue_retros(tmp_path):
         (tmp_path / name).write_text("x\n")
     assert [p.name for p in librarian.run_level_retros(tmp_path)] == [
         "RETRO-day2-opus_plan_reviewer.md", "RETRO-lead-fable.md"]
+
+
+def test_append_rows_skips_rows_with_no_review_counts(tmp_path):
+    ledger = tmp_path / "herd-ledger.md"
+    ledger.write_text(LEDGER_HEAD)
+    run = [ev("run-start"), ev("pr-opened", "420", pr="428", branch="fix/420")]
+    assert librarian.append_rows(ledger, librarian.rows(run, "r", gh_states({"428": "MERGED"}))) == 0
+    assert "#420" not in ledger.read_text()
+
+
+def test_report_opens_with_the_run_header(repo_with_worktree, capsys, monkeypatch):
+    import runlog
+    main, _ = repo_with_worktree
+    runlog.main(["add", "run-start", "--repo", str(main), "--text", "reconstructed from the state file"])
+    monkeypatch.setattr(librarian, "gh_runner", lambda repo: gh_states({}))
+    assert librarian.main(["report", "--repo", str(main)]) == 0
+    first = capsys.readouterr().out.splitlines()[0]
+    assert first.startswith("run ") and first.endswith(": reconstructed from the state file")
+
+
+def test_append_ledger_says_how_many_rows_it_skipped(repo_with_worktree, capsys, monkeypatch, tmp_path):
+    import runlog
+    main, _ = repo_with_worktree
+    runlog.main(["add", "run-start", "--repo", str(main)])
+    runlog.main(["add", "pr-opened", "--repo", str(main), "--issue", "420", "--pr", "428", "--branch", "fix/420"])
+    ledger = tmp_path / "herd-ledger.md"
+    ledger.write_text(LEDGER_HEAD)
+    monkeypatch.setattr(librarian, "gh_runner", lambda repo: gh_states({"428": "MERGED"}))
+    librarian.main(["append-ledger", "--repo", str(main), "--ledger", str(ledger)])
+    assert capsys.readouterr().out.strip() == "appended 0 rows; skipped 1 with no review counts (no spec-approved)"
+
+
+def test_a_ledger_with_nothing_to_add_is_left_byte_identical(tmp_path):
+    ledger = tmp_path / "herd-ledger.md"
+    ledger.write_text(LEDGER_HEAD.rstrip("\n"))
+    before = ledger.read_bytes()
+    run = [ev("run-start"), ev("pr-opened", "420", pr="428", branch="fix/420")]
+    librarian.append_rows(ledger, librarian.rows(run, "r", gh_states({"428": "MERGED"})))
+    assert ledger.read_bytes() == before

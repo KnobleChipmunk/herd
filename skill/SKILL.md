@@ -301,10 +301,12 @@ them.
   skill after this run? Reply with concrete, numbered items grounded in
   what you actually hit; write them to RETRO-<id>-<yourname>.md in the
   repo root and reply with only the path." The lead adds its own items the
-  same way. The collected items are QUOTED to the user for signoff in the
-  FINAL response only — never applied to the skill, the briefings, or the
-  repo without the user's explicit signoff, and never dripped mid-loop.
-  RETRO-*.md files stay untracked like the review files.
+  same way, as `RETRO-<id>-lead.md`. The librarian files every item into the
+  friction ledger after the run (see "After the run"); the closing report
+  lists the retro paths, it does not quote them. Nothing reaches the skill,
+  the briefings, or the repo without the user's explicit signoff, and
+  nothing is dripped mid-loop. RETRO-*.md files stay untracked like the
+  review files.
 
 **pi_build (builder).** Works ONLY in its worktree. Tests first, red,
 then implementation, then gates (pytest + ruff + mypy + the spec's grep
@@ -352,7 +354,7 @@ lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
        findings? → builder fixes → gates → reviewer re-signs → DONE again → re-review the delta
        clean?    → commit on branch → push → open PR, same turn
        → RETRO: ask all three agents "what would you improve in the skill?"
-       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + quoted retro items
+       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + "then run herd-librarian in Hermes"
        (user runs merge_stack.py, then --apply: merge in order, pull, clean up)
        → openspec archive on a chore branch, pushed and PR'd unasked
 ```
@@ -420,16 +422,34 @@ It replaces the hand-edited state file. After a compaction or a crash, the
 lead recovers from `runlog.py status` and live git/gh, not from memory.
 
 The lead records each checkpoint as it happens (`runlog.py add <kind>
---issue <id> …`): `run-start` first, then per issue `spec-approved`,
+--issue <id> …`): `run-start` first, then per issue `spec-approved` (with
+`--tier`), `plan-review` (with `--round` and `--verdict`),
 `worktree-created` / `scratch-created` / `branch-created` for everything
-the loop creates, `dispatched`, `review-round` (with `--verdict`), `done`,
-`blocked`, `pr-opened` (with `--pr` and `--branch`), `fallback` whenever a
-roster fallback runs, `decision-needed` / `decision-made`, and `run-end`.
+the loop creates, `dispatched`, `review-round` (with `--round` and
+`--verdict`), `ruling`, `gate-miss` (a briefing baseline the builder did not
+reproduce), `lead-finding` (each finding the lead's final pass caught after
+the reviewer signed off), `done`, `blocked`, `pr-opened` (with `--pr` and
+`--branch`), `fallback` whenever a roster fallback runs, `decision-needed` /
+`decision-made`, and `run-end`. These are the herd ledger's columns: a
+checkpoint the lead skips is a count the ledger gets wrong.
 Agents add `friction` lines themselves; their briefing and prompt carry the
 command. `status` shows each issue's progress and what is still open;
 `created` is what post-merge cleanup may remove, and nothing else;
 `friction` is the input to the post-run review, which the librarian
 (Hermes) reads after the run rather than during it.
+
+## After the run — the librarian
+
+Post-mortem belongs to the librarian, not to the lead's last turn: the lead's
+context may not survive the night, and the librarian runs on the local model
+with nothing else waiting. Once the operator has run `merge_stack.py
+--apply`, they start Hermes and run its `herd-librarian` skill (versioned in
+this repo at `hermes/herd-librarian/`). It appends one row per build to the
+vault's `herd-ledger.md`, files every friction line and retro item under a
+class in `friction-ledger.md`, and writes a proposal to `proposals/` when a
+class reaches two events. It commits nothing; a proposal becomes a change to
+this skill or its tools only through a PR the operator merges. The closing
+report ends with that instruction.
 
 ## Monitoring
 
