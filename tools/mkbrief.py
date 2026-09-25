@@ -18,6 +18,7 @@ from herdtool import find_python, main_checkout
 FENCECHECK = pathlib.Path(__file__).resolve().parent / "fencecheck.py"
 GATES = pathlib.Path(__file__).resolve().parent / "gates.py"
 MUTATE = pathlib.Path(__file__).resolve().parent / "mutate.py"
+RUNLOG = pathlib.Path(__file__).resolve().parent / "runlog.py"
 
 
 def resolve_lead_pane(explicit: str | None) -> str:
@@ -136,11 +137,17 @@ the round cap with open findings:
     herdr agent prompt {lead_pane} "BLOCKED: {id} — <one line: what and where>"
 
 Contact the lead for nothing else.
+
+When something costs you time — a wrong instruction, a wait, a command that
+failed for a reason the briefing could have prevented — record one line and
+carry on (it feeds the post-run review; it is not a message to the lead):
+
+    python3 {RUNLOG} add friction --repo {worktree} --issue {id} --agent pi_build --text "<what cost you time, and how long>"
 """
 
 
 def build_reviewer_prompt(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str, python: str,
-                          lead_pane: str, **_: object) -> str:
+                          lead_pane: str, reviewer: str, **_: object) -> str:
     w = worktree
     sha = base_sha(worktree, base)
     return f"""You are the REVIEWER for herd build #{id}, review round ROUND_N. Do NOT edit any file except your review file. Do NOT commit.
@@ -160,6 +167,7 @@ Do this:
 
 Write {w}/REVIEW-{id}-round-ROUND_N.md: what you ran (commands + last lines), what you checked, then numbered findings. End the file with exactly one sentinel line: `FINDINGS: <n>` or `REVIEW CLEAN`. A clean review still lists what it ran.
 Reply in chat with only the path and the sentinel. If and only if the sentinel is REVIEW CLEAN, also run: herdr agent prompt {lead_pane} "REVIEW CLEAN for {id} after ROUND_N rounds"
+If something in this prompt or the environment cost you time, record one line (not a message to anyone): python3 {RUNLOG} add friction --repo {w} --issue {id} --agent {reviewer} --text "<what cost you time, and how long>"
 """  # noqa: E501
 
 

@@ -25,11 +25,16 @@ import subprocess
 import sys
 
 
-def main_checkout(w: pathlib.Path) -> pathlib.Path:
-    """The primary checkout that `w` (a linked worktree or the checkout itself) belongs to."""
+def git_common_dir(w: pathlib.Path) -> pathlib.Path:
+    """The .git directory shared by the primary checkout and all its linked worktrees."""
     common = subprocess.run(["git", "-C", str(w), "rev-parse", "--path-format=absolute", "--git-common-dir"],
                             capture_output=True, text=True, check=True).stdout.strip()
-    return pathlib.Path(common).resolve().parent
+    return pathlib.Path(common).resolve()
+
+
+def main_checkout(w: pathlib.Path) -> pathlib.Path:
+    """The primary checkout that `w` (a linked worktree or the checkout itself) belongs to."""
+    return git_common_dir(w).parent
 
 
 def find_python(w: pathlib.Path) -> str:

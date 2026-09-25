@@ -329,6 +329,8 @@ lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
 ```bash
 git -C <repo> worktree add -b fix/<issue>-<slug> <repo>__worktrees/<slug> <base>   # <base> = main, or the prerequisite branch when stacked
 cp -r <repo>/openspec/changes/<name> <repo>__worktrees/<slug>/openspec/changes/   # spec is committed with the PR
+python3 <herd>/tools/runlog.py add worktree-created --repo <repo> --issue <issue> \
+  --worktree <repo>__worktrees/<slug> --branch fix/<issue>-<slug>   # cleanup removes only what the log names
 ```
 Editable installs resolve to the ORIGINAL checkout: every python/pytest
 command in the worktree is prefixed `PYTHONPATH=src`, and the briefing says
@@ -376,6 +378,25 @@ checked unchanged afterwards (TREE CHANGED catches a test with side effects
 or a failed restore); it refuses to start while pytest is running in the
 tree. A SURVIVED result means the test or the mutation is wrong — fix the
 spec, never skip the drive.
+
+## Run log (`tools/runlog.py`)
+
+The run's durable record is `<git common dir>/herd/run-log.jsonl`: one JSON
+line per checkpoint, appended, shared by every worktree, never committed.
+It replaces the hand-edited state file. After a compaction or a crash, the
+lead recovers from `runlog.py status` and live git/gh, not from memory.
+
+The lead records each checkpoint as it happens (`runlog.py add <kind>
+--issue <id> …`): `run-start` first, then per issue `spec-approved`,
+`worktree-created` / `scratch-created` / `branch-created` for everything
+the loop creates, `dispatched`, `review-round` (with `--verdict`), `done`,
+`blocked`, `pr-opened` (with `--pr` and `--branch`), `fallback` whenever a
+roster fallback runs, `decision-needed` / `decision-made`, and `run-end`.
+Agents add `friction` lines themselves; their briefing and prompt carry the
+command. `status` shows each issue's progress and what is still open;
+`created` is what post-merge cleanup may remove, and nothing else;
+`friction` is the input to the post-run review, which the librarian
+(Hermes) reads after the run rather than during it.
 
 ## Monitoring
 
