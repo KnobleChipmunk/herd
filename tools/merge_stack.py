@@ -6,7 +6,7 @@ The operator runs this after reviewing the PRs; without --apply it only says
 what it would do. It reads the latest run in the run log and:
 
 1. merges each PR the run opened, in the order it was opened, with a true
-   merge (`--merge --delete-branch`), stopping at the first PR that does not
+   merge (`--merge`, then the remote branch deleted), stopping at the first PR that does not
    target main, is closed, or fails to merge: later PRs are stacked on it;
 2. pulls main in the main checkout; an untracked file in the way is removed
    only when it is byte-identical to origin/main, otherwise it stops;
@@ -76,12 +76,21 @@ def merge_prs(events: list[dict], gh, apply: bool) -> tuple[list[str], set[str],
         elif not apply:
             lines.append(f"would merge {label}")
         else:
-            r = gh(["pr", "merge", pr, "--merge", "--delete-branch"])
+            # No `--delete-branch`: it deletes the local branch too, which fails
+            # while the build worktree has it checked out, and gh then exits
+            # non-zero after a merge that landed (project-mera #462). The
+            # state GitHub reports decides; the local branch goes in cleanup.
+            r = gh(["pr", "merge", pr, "--merge"])
             state = json.loads(gh(["pr", "view", pr, "--json", "state,baseRefName"]).stdout)["state"]
-            if r.returncode or state != "MERGED":
+            if state != "MERGED":
                 lines.append(f"STOP {label}: {last_line(r)}; later PRs are stacked on it")
                 return lines, merged, False
             lines.append(f"merged {label}")
+            branch = e.get("branch")
+            if branch:
+                d = gh(["api", "-X", "DELETE", f"repos/{{owner}}/{{repo}}/git/refs/heads/{branch}"])
+                if d.returncode:
+                    lines.append(f"could not delete remote branch {branch}: {last_line(d)}")
         merged.add(issue)
     return lines, merged, True
 
