@@ -28,7 +28,7 @@ a model here and nowhere else.
 | Builder | pi | Swift 1.5 27B, local (`swift15-qwen3.8-128k:latest`, a Qwen 3.8 fine-tune) | `pi_build` |
 | Plan reviewer | Codex | GPT-6 Astra (`gpt-6-astra`), high effort | `codex_plan_reviewer` |
 | Build reviewer | Codex | GPT-6 Sol (`gpt-6-sol`), high effort | `codex_review` |
-| Fallback reviewer | Claude Code | Fable (`claude-fable-5-1`), else Sonnet 5 (`claude-sonnet-5`) | `claude_plan_reviewer` / `claude_review` |
+| Fallback reviewer | Claude Code | Fable (`--model fable`), else Sonnet (`--model sonnet`); the aliases track the latest version | `claude_plan_reviewer` / `claude_review` |
 
 Why the two reviewers differ: plan review is where the herd catches real
 defects and runs one or two rounds per issue, so it gets the strongest
@@ -112,7 +112,7 @@ codex exec -m <model> "Reply with exactly: OK"
 
 ```bash
 herdr agent start claude_review --kind claude --pane <slot> -- \
-  --dangerously-skip-permissions --model claude-fable-5-1    # else claude-sonnet-5
+  --dangerously-skip-permissions --model fable    # else --model sonnet
 ```
 
 **Slot 3 for every other subagent role** (`opus_explore`, `opus_debug`, …):
