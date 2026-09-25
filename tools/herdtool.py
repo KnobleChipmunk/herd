@@ -17,6 +17,7 @@ The interpreter is $HERD_PYTHON, else the main checkout's .venv, else this one.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import pathlib
 import re
@@ -45,7 +46,13 @@ def find_python(w: pathlib.Path) -> str:
 
 
 def mutate_env() -> dict[str, str]:
-    return {"PYTHONPATH": "src", "PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1",
+    """A pinned environment for the drives, plus node's directory: page tests
+    run under node and skip without it, and a skipped killer proves nothing."""
+    path = ["/usr/bin", "/bin"]
+    node = shutil.which("node")
+    if node and str(pathlib.Path(node).parent) not in path:
+        path.append(str(pathlib.Path(node).parent))
+    return {"PYTHONPATH": "src", "PATH": ":".join(path), "PYTHONDONTWRITEBYTECODE": "1",
             "HOME": str(pathlib.Path.home())}
 
 
@@ -130,6 +137,62 @@ def porcelain(w: pathlib.Path) -> str | None:
     return r.stdout if r.returncode == 0 else None
 
 
+def content_hashes(w: pathlib.Path) -> dict[str, str]:
+    """A hash of every modified or untracked file. The status letter of a file
+    that was already changed does not move when a test rewrites it again."""
+    r = subprocess.run(["git", "-C", str(w), "status", "--porcelain", "-z", "-uall"],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        return {}
+    paths = [e[3:] for e in r.stdout.split("\0") if len(e) > 3 and e[3:] and (w / e[3:]).is_file()]
+    if not paths:
+        return {}
+    h = subprocess.run(["git", "-C", str(w), "hash-object", "--stdin-paths"],
+                       input="\n".join(paths) + "\n", capture_output=True, text=True)
+    return dict(zip(paths, h.stdout.split(), strict=True)) if h.returncode == 0 else {}
+
+
+# A drive killed mid-mutation never reaches its `finally`, so the file stays
+# mutated and the next run sees a VOID anchor or, worse, builds on it. The
+# drive records what it is about to change, and every run restores first.
+INFLIGHT = ".herd-mutate-inflight.json"
+
+
+def inflight_path(w: pathlib.Path) -> pathlib.Path:
+    return w / INFLIGHT
+
+
+def write_inflight(w: pathlib.Path, path: pathlib.Path, original: str) -> None:
+    inflight_path(w).write_text(json.dumps({"path": str(path.relative_to(w)), "original": original}),
+                                encoding="utf-8")
+
+
+def restore_inflight(w: pathlib.Path) -> str | None:
+    """Put back a file an interrupted drive left mutated; the line to report, or None."""
+    journal = inflight_path(w)
+    if not journal.exists():
+        return None
+    record = json.loads(journal.read_text(encoding="utf-8"))
+    (w / record["path"]).write_text(record["original"], encoding="utf-8")
+    journal.unlink()
+    return f"RESTORED {record['path']}, left mutated by an interrupted drive"
+
+
+def verdict(returncode: int, stdout: str) -> tuple[str, str]:
+    """KILLED, SURVIVED, or NOT RUN, and the line that shows it.
+
+    Only a failing or erroring test is a kill, and only a passing one a
+    survival. A skip, a deselection, or a killer id pytest cannot resolve ran
+    nothing, and says nothing about the mutation."""
+    fail = next((ln for ln in stdout.splitlines() if ln.startswith(("FAILED", "ERROR"))), "")
+    if returncode != 0 and fail:
+        return "KILLED", fail
+    summary = next((ln for ln in reversed(stdout.splitlines()) if ln.strip()), "")
+    if returncode == 0 and re.search(r"\b\d+ passed", summary):
+        return "SURVIVED", ""
+    return "NOT RUN", summary or f"pytest exited {returncode} with no output"
+
+
 def run_mutations(w: pathlib.Path, muts: list, py: str) -> tuple[list[str], int]:
     """Drive each (name, relpath, old, new, killer) once; return report lines and the failure count.
 
@@ -137,7 +200,11 @@ def run_mutations(w: pathlib.Path, muts: list, py: str) -> tuple[list[str], int]
     left changed after the drives (a test with side effects, a failed restore).
     """
     lines, failures = [], 0
+    restored = restore_inflight(w)
+    if restored:
+        lines.append(restored)
     before = porcelain(w)
+    before_content = content_hashes(w)
     for name, rel, old, new, test in muts:
         path = w / rel
         orig = path.read_text(encoding="utf-8")
@@ -145,6 +212,7 @@ def run_mutations(w: pathlib.Path, muts: list, py: str) -> tuple[list[str], int]
             lines.append(f"{name} VOID anchor occurs {orig.count(old)} times in {rel}")
             failures += 1
             continue
+        write_inflight(w, path, orig)
         path.write_text(orig.replace(old, new, 1), encoding="utf-8")
         try:
             for pc in w.rglob("__pycache__"):
@@ -155,12 +223,18 @@ def run_mutations(w: pathlib.Path, muts: list, py: str) -> tuple[list[str], int]
             )
         finally:
             path.write_text(orig, encoding="utf-8")
-        failures += r.returncode == 0
-        fail = next((ln for ln in r.stdout.splitlines() if ln.startswith(("FAILED", "ERROR"))), "")
-        lines.append(f"{name} {'KILLED' if r.returncode else 'SURVIVED'} {fail[:150]}".rstrip())
+            inflight_path(w).unlink(missing_ok=True)
+        result, shown = verdict(r.returncode, r.stdout)
+        failures += result != "KILLED"
+        lines.append(f"{name} {result} {shown[:150]}".rstrip())
     after = porcelain(w)
-    if before is not None and after != before:
-        changed = sorted(set(after.splitlines()) - set(before.splitlines()))
+    after_content = content_hashes(w)
+    changed = []
+    if before is not None and after is not None and after != before:
+        changed += sorted(set(after.splitlines()) - set(before.splitlines()))
+    changed += [f"content of {p}" for p in sorted(before_content)
+                if p in after_content and after_content[p] != before_content[p]]
+    if changed:
         lines.append("TREE CHANGED after the drives: " + "; ".join(changed))
         failures += 1
     return lines, failures

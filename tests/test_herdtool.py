@@ -50,3 +50,14 @@ def test_no_tool_carries_a_machine_path_or_a_run_specific_pane(name):
     text = (pathlib.Path(herdtool.__file__).parent / name).read_text()
     for banned in ("/home/tusk", "project-mera", "w1:p1S", "opus_review"):
         assert banned not in text, (name, banned)
+
+
+def test_mutate_env_keeps_node_on_the_path(monkeypatch, tmp_path):
+    """Node-driven killer tests skip when node is missing, and a skip is not
+    a kill; node often lives outside /usr/bin (nvm)."""
+    node = tmp_path / "nvm" / "bin" / "node"
+    node.parent.mkdir(parents=True)
+    node.write_text("#!/bin/sh\n")
+    node.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{node.parent}:/usr/bin:/bin")
+    assert str(node.parent) in herdtool.mutate_env()["PATH"].split(":")
