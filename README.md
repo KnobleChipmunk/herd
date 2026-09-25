@@ -17,8 +17,25 @@ The `/herd` skill and the toolkit it runs on.
 ln -s ~/projects/herd/skill ~/.claude/skills/herd
 ```
 
-## Known debt
+## Configuration
 
-The tools were imported verbatim from the 2026-09-21 overnight run and still
-carry project-mera paths (`PY`, `HOME`, the briefing text in `mkbrief.py`).
-Making them portable is the first toolkit PR.
+Nothing in `tools/` names a machine path or a pane. Each value is resolved
+at run time:
+
+- **Python** for tests and mutation drives: `$HERD_PYTHON` if set, else
+  `.venv/bin/python` in the worktree's main checkout (found through git),
+  else the interpreter running the tool.
+- **Lead pane** that receives DONE, BLOCKED and REVIEW CLEAN: `mkbrief.py
+  --lead-pane`, else `$HERDR_PANE_ID`, so run it from the lead's pane.
+- **Build reviewer** pane: `mkbrief.py --reviewer`, default `codex_review`
+  (the skill's Roster table).
+
+## Tests
+
+```bash
+python3 -m pytest
+ruff check tools tests
+```
+
+`tests/test_herdtool.py` fails if any tool names a machine path, the
+project-mera checkout, or a pane from a past run.

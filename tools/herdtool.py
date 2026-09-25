@@ -11,16 +11,36 @@ Step = dict(kind="replace"|"append"|"insert_before"|"new_file", path=..., old=..
   new_file:       new is the whole file body
 
 usage: herdtool.py <plan.py> apply-tests|apply-impl|mutate|render|check-applied <worktree>
+
+The interpreter is $HERD_PYTHON, else the main checkout's .venv, else this one.
 """
 from __future__ import annotations
 
 import importlib.util
+import os
 import pathlib
 import shutil
 import subprocess
 import sys
 
-PY = "/home/tusk/projects/project-mera/.venv/bin/python"
+
+def main_checkout(w: pathlib.Path) -> pathlib.Path:
+    """The primary checkout that `w` (a linked worktree or the checkout itself) belongs to."""
+    common = subprocess.run(["git", "-C", str(w), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                            capture_output=True, text=True, check=True).stdout.strip()
+    return pathlib.Path(common).resolve().parent
+
+
+def find_python(w: pathlib.Path) -> str:
+    if os.environ.get("HERD_PYTHON"):
+        return os.environ["HERD_PYTHON"]
+    venv_py = main_checkout(w) / ".venv" / "bin" / "python"
+    return str(venv_py) if venv_py.exists() else sys.executable
+
+
+def mutate_env() -> dict[str, str]:
+    return {"PYTHONPATH": "src", "PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1",
+            "HOME": str(pathlib.Path.home())}
 
 
 def base_text(ref: str, base: str, rel: str) -> str:
@@ -30,7 +50,8 @@ def base_text(ref: str, base: str, rel: str) -> str:
 def between(text: str, start: str, end: str) -> str:
     """The unique span from `start` through the first `end` after it, inclusive."""
     assert text.count(start) == 1, ("start not unique", start[:50])
-    i = text.index(start); j = text.index(end, i) + len(end)
+    i = text.index(start)
+    j = text.index(end, i) + len(end)
     return text[i:j]
 
 
@@ -84,6 +105,7 @@ def is_applied(w: pathlib.Path, step: dict) -> bool:
 
 def mutate(w: pathlib.Path, muts: list) -> int:
     survived = 0
+    py = find_python(w)
     for name, rel, old, new, test in muts:
         path = w / rel
         orig = path.read_text(encoding="utf-8")
@@ -93,10 +115,8 @@ def mutate(w: pathlib.Path, muts: list) -> int:
             for pc in (w / "src").rglob("__pycache__"):
                 shutil.rmtree(pc, ignore_errors=True)
             r = subprocess.run(
-                [PY, "-m", "pytest", *test.split(), "-q", "--no-header", "-p", "no:cacheprovider", "-x"],
-                cwd=w, capture_output=True, text=True,
-                env={"PYTHONPATH": "src", "PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1",
-                     "HOME": "/home/tusk"},
+                [py, "-m", "pytest", *test.split(), "-q", "--no-header", "-p", "no:cacheprovider", "-x"],
+                cwd=w, capture_output=True, text=True, env=mutate_env(),
             )
         finally:
             path.write_text(orig, encoding="utf-8")
