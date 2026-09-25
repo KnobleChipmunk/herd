@@ -90,3 +90,50 @@ def test_main_writes_both_files(repo_with_worktree, tmp_path, monkeypatch):
     assert "w5:p5A" in (wt / "BUILD-BRIEFING-42.md").read_text()
     assert "codex_review" in (wt / "BUILD-BRIEFING-42.md").read_text()
     assert (wt / "CODEX-PROMPT-42.md").exists()
+
+
+def head_sha(path):
+    import subprocess
+    return subprocess.run(["git", "-C", str(path), "rev-parse", "main"], capture_output=True, text=True,
+                          check=True).stdout.strip()
+
+
+def test_briefing_and_prompt_pin_the_base_to_one_sha(repo_with_worktree):
+    main, wt, briefing, prompt = brief(repo_with_worktree)
+    sha = head_sha(main)
+    assert f"cut from main ({sha})" in briefing
+    assert f"git -C {wt} diff {sha}" in prompt
+
+
+def test_a_base_that_is_not_a_git_ref_is_an_error(repo_with_worktree):
+    with pytest.raises(SystemExit, match="not a git ref.*origin/nowhere"):
+        brief(repo_with_worktree, base="origin/nowhere")
+
+
+def test_reviewer_prompt_lists_changes_with_the_manifest_against_the_allowed_file(repo_with_worktree):
+    main, wt, _, prompt = brief(repo_with_worktree)
+    assert f"python3 {mkbrief.GATES} manifest {wt} {head_sha(main)} --allowed {wt}/ALLOWED-42.txt" in prompt
+    assert "OUTSIDE ALLOWED" in prompt
+
+
+def test_briefing_gates_are_matched_by_counts_with_the_gate_tool(repo_with_worktree):
+    _, _, briefing, _ = brief(repo_with_worktree)
+    assert f'python3 {mkbrief.GATES} match "<expected line>" <output file>' in briefing
+    assert "literal last lines" not in briefing
+
+
+def test_briefing_names_temporary_files_scratch(repo_with_worktree):
+    _, _, briefing, _ = brief(repo_with_worktree)
+    assert "name them `SCRATCH-<anything>`" in briefing
+
+
+def test_main_writes_the_allowed_file_with_the_spec_directory(repo_with_worktree, tmp_path, monkeypatch):
+    _, wt = repo_with_worktree
+    monkeypatch.setenv("HERDR_PANE_ID", "w5:p5A")
+    monkeypatch.setenv("HERD_PYTHON", sys.executable)
+    gates_file = tmp_path / "gates.txt"
+    gates_file.write_text("G\n")
+    allowed = tmp_path / "allowed.txt"
+    allowed.write_text("  - `src/x.py`\n")
+    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(gates_file), str(allowed)])
+    assert (wt / "ALLOWED-42.txt").read_text() == "  - `src/x.py`\n  - `openspec/changes/fix-x/`\n"
