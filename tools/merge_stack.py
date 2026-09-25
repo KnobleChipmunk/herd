@@ -166,11 +166,11 @@ def launch(cmd: list[str], log: pathlib.Path) -> int:
 
 
 def start_librarian(main: pathlib.Path, events: list[dict], log_file: pathlib.Path, apply: bool) -> str:
-    if not apply:
-        return "would start the librarian (Hermes herd-librarian)"
     if any(e["kind"] == "note" and e.get("text", "").startswith(("librarian started", "librarian:"))
            for e in events):
-        return "librarian already started for this run; not starting it again"
+        return "librarian already handled this run (see the run log); not starting it again"
+    if not apply:
+        return "would start the librarian (Hermes herd-librarian)"
     cmd = librarian_command(main)
     if not shutil.which("hermes"):
         return "librarian NOT started: hermes is not on PATH; run: " + shlex.join(cmd)

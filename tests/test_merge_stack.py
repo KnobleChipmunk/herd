@@ -302,7 +302,7 @@ def test_a_rerun_does_not_start_the_librarian_twice(created, monkeypatch, capsys
     monkeypatch.setattr(merge_stack, "gh_runner", lambda repo: FakeGH({"429": "MERGED"}))
     merge_stack.main(["--repo", str(main), "--log", str(log), "--apply"])
     assert no_real_librarian == []
-    assert capsys.readouterr().out.splitlines()[-1] == "librarian already started for this run; not starting it again"
+    assert capsys.readouterr().out.splitlines()[-1] == "librarian already handled this run (see the run log); not starting it again"
 
 
 def test_no_librarian_skips_it(created, monkeypatch, capsys, no_real_librarian):
@@ -340,3 +340,11 @@ def test_without_hermes_it_says_how_to_run_the_librarian_by_hand(created, monkey
     assert no_real_librarian == []
     last = capsys.readouterr().out.splitlines()[-1]
     assert last.startswith("librarian NOT started: hermes is not on PATH; run: hermes -s herd-librarian -z ")
+
+
+def test_a_dry_run_on_a_run_the_librarian_already_handled_says_so(created, monkeypatch, capsys, no_real_librarian):
+    main, _, events = created
+    log = write_log(main, events, [{"kind": "note", "text": "librarian: skipped, reconstructed run"}])
+    monkeypatch.setattr(merge_stack, "gh_runner", lambda repo: FakeGH({"429": "MERGED"}))
+    merge_stack.main(["--repo", str(main), "--log", str(log)])
+    assert capsys.readouterr().out.splitlines()[-1] == "librarian already handled this run (see the run log); not starting it again"
