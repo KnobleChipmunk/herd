@@ -26,6 +26,10 @@ The `/herd` skill and the toolkit it runs on.
     repo's git directory; `status`, `created` and `friction` read the latest
     run back (progress per issue and what is still open, what the run
     created, and the agents' friction lines).
+  - `probe.py [--role ROLE] [--log --repo PATH]` reads the Roster table,
+    sends each candidate in a role's fallback chain a one-line request
+    through its own harness, and prints the model each role will use;
+    fallbacks are logged to the run log.
   - `wait_file.sh` and `watch_review.sh` wait on the files agents write,
     which is the reliable completion signal.
 
