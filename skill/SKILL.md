@@ -359,34 +359,23 @@ prompt in its own file (`CODEX-PROMPT-<id>.md`, with `ROUND_N` and
 into the worktree root. Prompt the builder with one line pointing at the
 briefing file.
 
-## Mutation drives — canonical script (#321)
+## Mutation drives — `tools/mutate.py` (#321)
 
-Specs name mutations and killer tests; the mechanics are always the same.
-Both the lead (pre-execution) and the builder drive them with this shape —
-adapt paths, never the discipline:
+Specs name mutations and killer tests in tasks.md section 3; the mechanics
+are always the same, so nobody hand-writes a driver. The lead
+(pre-execution, from its plan module: `herdtool.py <plan> mutate <tree>`)
+and the builder (`mutate.py <tasks.md> <worktree>`) run the same engine;
+the build reviewer re-drives two of its own choosing with `--scratch`,
+which works on a copy and never touches the build.
 
-```python
-import pathlib, subprocess, shutil
-W = pathlib.Path("<worktree>"); PY = "<venv>/bin/python"
-MUTS = [("M1", W/"src/pkg/mod.py", "<unique old text>", "<mutated text>",
-         "tests/test_mod.py::test_killer"), ...]
-for name, path, old, new, test in MUTS:
-    orig = path.read_text()
-    assert orig.count(old) == 1, (name, "anchor not unique")
-    path.write_text(orig.replace(old, new, 1))
-    for pc in W.rglob("__pycache__"): shutil.rmtree(pc, ignore_errors=True)
-    r = subprocess.run([PY, "-m", "pytest", test, "-q", "--no-header"],
-        cwd=W, capture_output=True, text=True,
-        env={"PYTHONPATH": "src", "PATH": "/usr/bin:/bin",
-             "PYTHONDONTWRITEBYTECODE": "1", "HOME": "<home>"})
-    print(name, "KILLED" if r.returncode else "SURVIVED")
-    path.write_text(orig)
-```
-
-Rules the script encodes: one mutation at a time; the anchor must be
-unique or the drive is void; `__pycache__` cleared between mutate and
-restore; the file restored after EVERY drive; a SURVIVED result means the
-test or the mutation is wrong — fix the spec, never skip the drive.
+What the engine enforces: one mutation at a time; an anchor that does not
+occur exactly once voids the drive (VOID); `__pycache__` cleared across the
+whole tree and pytest run with `-B`, so stale bytecode cannot fake a
+survivor; the file restored after EVERY drive, and the tree's git status
+checked unchanged afterwards (TREE CHANGED catches a test with side effects
+or a failed restore); it refuses to start while pytest is running in the
+tree. A SURVIVED result means the test or the mutation is wrong — fix the
+spec, never skip the drive.
 
 ## Monitoring
 

@@ -17,17 +17,7 @@ from __future__ import annotations
 import pathlib
 import sys
 
-from herdtool import parse_tasks, step_problem
-
-
-def forms(rendered: str) -> list[str]:
-    """The texts a rendered fence body can have come from, exact first.
-
-    fence() adds a newline only to text that lacks one, so the body without its
-    last newline is a possible source only if it does not itself end in one.
-    """
-    stripped = rendered[:-1]
-    return [rendered] if stripped.endswith("\n") else [rendered, stripped]
+from herdtool import forms, parse_tasks, step_problem
 
 
 def resolve(w: pathlib.Path, step: dict) -> dict:

@@ -17,6 +17,7 @@ from herdtool import find_python, main_checkout
 
 FENCECHECK = pathlib.Path(__file__).resolve().parent / "fencecheck.py"
 GATES = pathlib.Path(__file__).resolve().parent / "gates.py"
+MUTATE = pathlib.Path(__file__).resolve().parent / "mutate.py"
 
 
 def resolve_lead_pane(explicit: str | None) -> str:
@@ -91,9 +92,11 @@ byte for byte.
 - Never loosen, delete, or skip an assertion to make a test pass.
 - Allowed files (edit nothing else):
 {allowed}
-- Mutation drives (section 3): one at a time; make the edit, run the named
-  killer test, record the FAILED line, RESTORE the file, confirm the killer
-  test passes again. A mutation that SURVIVES is a BLOCKED, not a skip.
+- Mutation drives (section 3): run `python3 {MUTATE} openspec/changes/{change}/tasks.md .`
+  after GREEN, with no test run going in this worktree. It drives each one
+  in turn, restores every file, and checks the tree is unchanged; paste its
+  output into the handoff. Do not hand-edit mutations. A SURVIVED, VOID or
+  TREE CHANGED line is a BLOCKED, not a skip.
 
 ## Handoff — write `HANDOFF-{id}.md` in the worktree root
 
@@ -152,7 +155,8 @@ Do this:
 1. Read the spec, then the handoff, then the diff.
 2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -m pytest <touched test files> -q --no-header`, plus the ruff, mypy and grep gates in tasks.md. Record the commands and their last lines.
 3. Check the build against tasks.md: the fences are byte-exact reference text, so run `python3 {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — every line it prints other than `FENCES OK` is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; BUILD-BRIEFING/HANDOFF/REVIEW/CODEX files are coordination files, not findings.
-4. Report ONLY CONFIRMED defects — ones you reproduced or can show at file:line — each with an exact fix. Do not propose work the proposal's Non-goals exclude, new subsystems, persistence, or refactors.
+4. Re-drive two mutations of your choice on a scratch copy, which never touches the build: `python3 {MUTATE} {w}/openspec/changes/{change}/tasks.md {w} --scratch --only <name>,<name>`. A result that differs from the handoff's mutation log is a finding.
+5. Report ONLY CONFIRMED defects — ones you reproduced or can show at file:line — each with an exact fix. Do not propose work the proposal's Non-goals exclude, new subsystems, persistence, or refactors.
 
 Write {w}/REVIEW-{id}-round-ROUND_N.md: what you ran (commands + last lines), what you checked, then numbered findings. End the file with exactly one sentinel line: `FINDINGS: <n>` or `REVIEW CLEAN`. A clean review still lists what it ran.
 Reply in chat with only the path and the sentinel. If and only if the sentinel is REVIEW CLEAN, also run: herdr agent prompt {lead_pane} "REVIEW CLEAN for {id} after ROUND_N rounds"
