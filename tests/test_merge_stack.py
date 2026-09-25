@@ -25,11 +25,17 @@ class FakeGH:
     """gh with PR states in a dict; `pr merge` flips OPEN to MERGED unless told to fail."""
 
     def __init__(self, states: dict[str, str], bases: dict[str, str] | None = None, fail: set[str] = frozenset(),
-                 queued: set[str] = frozenset()):
+                 queued: set[str] = frozenset(), merge_exit: dict[str, tuple[int, str]] | None = None,
+                 ref_delete_fails: bool = False):
         self.states, self.bases, self.fail, self.queued, self.calls = dict(states), bases or {}, fail, queued, []
+        self.merge_exit, self.ref_delete_fails = merge_exit or {}, ref_delete_fails
 
     def __call__(self, args: list[str]) -> subprocess.CompletedProcess:
         self.calls.append(args)
+        if args[0] == "api":
+            if self.ref_delete_fails:
+                return subprocess.CompletedProcess(args, 1, "", "gh: Reference does not exist (HTTP 422)")
+            return subprocess.CompletedProcess(args, 0, "", "")
         pr = args[2]
         if args[:2] == ["pr", "view"]:
             out = json.dumps({"state": self.states[pr], "baseRefName": self.bases.get(pr, "main")})
@@ -39,7 +45,8 @@ class FakeGH:
                 return subprocess.CompletedProcess(args, 1, "", "Pull request is not mergeable: conflicts")
             if pr not in self.queued:
                 self.states[pr] = "MERGED"
-            return subprocess.CompletedProcess(args, 0, "", "")
+            code, err = self.merge_exit.get(pr, (0, ""))
+            return subprocess.CompletedProcess(args, code, "", err)
         raise AssertionError(args)
 
 
@@ -55,10 +62,31 @@ def test_merges_open_prs_in_the_order_they_were_opened():
     assert lines == ["merged PR #429 (#421)", "merged PR #431 (#422)"]
 
 
-def test_every_merge_uses_a_true_merge_and_deletes_the_branch():
+def test_every_merge_uses_a_true_merge_and_deletes_the_remote_branch():
+    """Not `--delete-branch`: that also deletes the local branch, which fails
+    while the build worktree still has it checked out (project-mera #462).
+    The local branch goes in cleanup, after its worktree."""
     gh = FakeGH({"429": "OPEN"})
     merge_stack.merge_prs(pr_events(("421", "429")), gh, apply=True)
-    assert ["pr", "merge", "429", "--merge", "--delete-branch"] in gh.calls
+    assert ["pr", "merge", "429", "--merge"] in gh.calls
+    assert ["api", "-X", "DELETE", "repos/{owner}/{repo}/git/refs/heads/fix/421"] in gh.calls
+
+
+def test_a_merge_gh_reports_as_failed_but_github_merged_counts_as_merged():
+    """#462: the merge landed; gh then failed deleting the local branch."""
+    gh = FakeGH({"429": "OPEN", "431": "OPEN"}, merge_exit={
+        "429": (1, "failed to delete local branch fix/421: used by worktree")})
+    lines, merged, ok = merge_stack.merge_prs(pr_events(("421", "429"), ("422", "431")), gh, apply=True)
+    assert ok and merged == {"421", "422"}
+    assert lines[0] == "merged PR #429 (#421)"
+
+
+def test_a_remote_branch_that_cannot_be_deleted_is_reported_not_a_stop():
+    gh = FakeGH({"429": "OPEN"}, ref_delete_fails=True)
+    lines, merged, ok = merge_stack.merge_prs(pr_events(("421", "429")), gh, apply=True)
+    assert ok and merged == {"421"}
+    assert lines == ["merged PR #429 (#421)",
+                     "could not delete remote branch fix/421: gh: Reference does not exist (HTTP 422)"]
 
 
 def test_an_already_merged_pr_is_skipped_so_a_rerun_is_safe():
