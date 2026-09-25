@@ -288,7 +288,9 @@ The builder never contacts the lead between dispatch and that DONE except
 `BLOCKED:`. It never commits, pushes, or leaves the worktree.
 
 **codex_review (build reviewer).** Reads spec + handoff, reviews the worktree diff
-against the branch base named in its prompt, runs the **touched** test
+against the branch base named in its prompt, runs `tools/fencecheck.py`
+(the prompt carries the exact command) instead of checking fences by eye,
+runs the **touched** test
 files itself (not the full suite — the handoff carries that tail
 verbatim), reports only CONFIRMED defects with file:line and an exact
 fix, writes `REVIEW-<id>-round-N.md`, ends with `FINDINGS: <n>` or

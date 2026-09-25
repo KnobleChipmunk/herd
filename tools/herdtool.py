@@ -19,6 +19,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -89,18 +90,34 @@ def apply_step(w: pathlib.Path, step: dict) -> None:
         raise ValueError(kind)
 
 
-def is_applied(w: pathlib.Path, step: dict) -> bool:
+def first_diff_line(a: str, b: str) -> int:
+    la, lb = a.splitlines(keepends=True), b.splitlines(keepends=True)
+    return next((i for i, (x, y) in enumerate(zip(la, lb), 1) if x != y), min(len(la), len(lb)) + 1)
+
+
+def step_problem(w: pathlib.Path, step: dict) -> str | None:
+    """Why `step` is not applied in worktree `w`, or None when it is."""
     path = w / step["path"]
     if not path.exists():
-        return False
+        return "file missing"
     text = path.read_text(encoding="utf-8")
     if step["kind"] in ("new_file", "whole_file"):
-        return text == step["new"]
+        return None if text == step["new"] else f"file differs from the fence at line {first_diff_line(text, step['new'])}"
     if step["kind"] == "append":
-        return text.endswith(step["new"])
+        return None if text.endswith(step["new"]) else "file does not end with the appended text"
     if step["kind"] == "insert_before":
-        return text.count(step["new"] + step["old"]) == 1
-    return text.count(step["new"]) >= 1 and (step["old"] not in text or step["old"] in step["new"])
+        ok = text.count(step["new"] + step["old"]) == 1
+        return None if ok else "inserted text not found exactly once before its anchor"
+    if step["new"] not in text:
+        return "replacement text not found"
+    old = step.get("old")
+    if old is not None and old in text and old not in step["new"]:
+        return "replaced text still present"
+    return None
+
+
+def is_applied(w: pathlib.Path, step: dict) -> bool:
+    return step_problem(w, step) is None
 
 
 def mutate(w: pathlib.Path, muts: list) -> int:
@@ -136,31 +153,71 @@ def fence(text: str, lang: str = "python") -> str:
     return f"{ticks}{lang}\n{text}{'' if text.endswith(chr(10)) else chr(10)}{ticks}\n"
 
 
+CREATE = "Create this file with exactly this body (byte-exact, ends with one newline):"
+WHOLE = ("REPLACE THE WHOLE FILE. Delete everything in it and write exactly this body "
+         "(byte-exact, ends with one newline):")
+APPEND = ("Append exactly this text at the END of the file. The fence below BEGINS with the blank "
+          "lines that separate it from the existing last line — keep them. The file must end with one newline:")
+FIND = "Find this exact text (it occurs exactly once):"
+INSERT = "Insert exactly this text IMMEDIATELY BEFORE it (the fence carries its own trailing blank lines):"
+REPLACE_WITH = "Replace it with exactly:"
+
+
 def render_steps(steps: list, start: int, prefix: str) -> str:
     out = []
     for i, s in enumerate(steps, start):
         head = f"- [ ] **{prefix}{i}** `{s['path']}` — {s['why']}\n\n"
         k = s["kind"]
+        lang = lang_of(s["path"])
         if k == "new_file":
-            body = "Create this file with exactly this body (byte-exact, ends with one newline):\n\n" + fence(s["new"], lang_of(s["path"]))
+            body = f"{CREATE}\n\n" + fence(s["new"], lang)
         elif k == "whole_file":
-            body = ("REPLACE THE WHOLE FILE. Delete everything in it and write exactly this body "
-                    "(byte-exact, ends with one newline):\n\n" + fence(s["new"], lang_of(s["path"])))
+            body = f"{WHOLE}\n\n" + fence(s["new"], lang)
         elif k == "append":
-            body = ("Append exactly this text at the END of the file. The fence below BEGINS with the blank "
-                    "lines that separate it from the existing last line — keep them. The file must end with one newline:\n\n"
-                    + fence(s["new"], lang_of(s["path"])))
+            body = f"{APPEND}\n\n" + fence(s["new"], lang)
         elif k == "insert_before":
-            body = ("Find this exact text (it occurs exactly once):\n\n" + fence(s["old"], lang_of(s["path"])) +
-                    "\nInsert exactly this text IMMEDIATELY BEFORE it (the fence carries its own trailing blank lines):\n\n"
-                    + fence(s["new"], lang_of(s["path"])))
+            body = f"{FIND}\n\n" + fence(s["old"], lang) + f"\n{INSERT}\n\n" + fence(s["new"], lang)
         elif s.get("old_desc"):
-            body = s["old_desc"] + "\n\nReplace it with exactly:\n\n" + fence(s["new"], lang_of(s["path"]))
+            body = s["old_desc"] + f"\n\n{REPLACE_WITH}\n\n" + fence(s["new"], lang)
         else:
-            body = ("Find this exact text (it occurs exactly once):\n\n" + fence(s["old"], lang_of(s["path"])) +
-                    "\nReplace it with exactly:\n\n" + fence(s["new"], lang_of(s["path"])))
+            body = f"{FIND}\n\n" + fence(s["old"], lang) + f"\n{REPLACE_WITH}\n\n" + fence(s["new"], lang)
         out.append(head + body)
     return "\n".join(out)
+
+
+STEP_HEAD = re.compile(r"^- \[ \] \*\*([TI]\d+)\*\* `([^`]+)` — ", re.M)
+FENCE_BODY = re.compile(r"^(`{3,4})[\w-]*\n(.*?)^\1\n", re.M | re.S)
+
+
+def parse_tasks(text: str) -> list[dict]:
+    """The T/I steps of a tasks.md written by render_steps, bodies as rendered (always newline-terminated)."""
+    heads = list(STEP_HEAD.finditer(text))
+    steps = []
+    for n, h in enumerate(heads):
+        seg = text[h.end():heads[n + 1].start() if n + 1 < len(heads) else len(text)]
+        fences = list(FENCE_BODY.finditer(seg))
+        # The step ends at the first `## ` heading outside a fence; one inside a fence is file content.
+        pos = seg.find("\n## ")
+        while pos != -1 and any(f.start() <= pos < f.end() for f in fences):
+            pos = seg.find("\n## ", pos + 1)
+        if pos != -1:
+            seg = seg[:pos]
+        bodies = [m.group(2) for m in fences if m.end() <= len(seg)]
+        step = {"name": h.group(1), "path": h.group(2), "old": None}
+        if WHOLE in seg:
+            step.update(kind="whole_file", new=bodies[0])
+        elif CREATE in seg:
+            step.update(kind="new_file", new=bodies[0])
+        elif APPEND in seg:
+            step.update(kind="append", new=bodies[0])
+        elif INSERT in seg:
+            step.update(kind="insert_before", old=bodies[0], new=bodies[1])
+        elif FIND in seg:
+            step.update(kind="replace", old=bodies[0], new=bodies[1])
+        else:
+            step.update(kind="replace", new=bodies[0])
+        steps.append(step)
+    return steps
 
 
 def main() -> None:
