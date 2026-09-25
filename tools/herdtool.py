@@ -120,28 +120,62 @@ def is_applied(w: pathlib.Path, step: dict) -> bool:
     return step_problem(w, step) is None
 
 
-def mutate(w: pathlib.Path, muts: list) -> int:
-    survived = 0
-    py = find_python(w)
+def porcelain(w: pathlib.Path) -> str | None:
+    r = subprocess.run(["git", "-C", str(w), "status", "--porcelain"], capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else None
+
+
+def run_mutations(w: pathlib.Path, muts: list, py: str) -> tuple[list[str], int]:
+    """Drive each (name, relpath, old, new, killer) once; return report lines and the failure count.
+
+    A failure is a survivor, a void drive (anchor not exactly once), or a tree
+    left changed after the drives (a test with side effects, a failed restore).
+    """
+    lines, failures = [], 0
+    before = porcelain(w)
     for name, rel, old, new, test in muts:
         path = w / rel
         orig = path.read_text(encoding="utf-8")
-        assert orig.count(old) == 1, (name, "anchor not unique", orig.count(old))
+        if orig.count(old) != 1:
+            lines.append(f"{name} VOID anchor occurs {orig.count(old)} times in {rel}")
+            failures += 1
+            continue
         path.write_text(orig.replace(old, new, 1), encoding="utf-8")
         try:
-            for pc in (w / "src").rglob("__pycache__"):
+            for pc in w.rglob("__pycache__"):
                 shutil.rmtree(pc, ignore_errors=True)
             r = subprocess.run(
-                [py, "-m", "pytest", *test.split(), "-q", "--no-header", "-p", "no:cacheprovider", "-x"],
+                [py, "-B", "-m", "pytest", *test.split(), "-q", "--no-header", "-p", "no:cacheprovider", "-x"],
                 cwd=w, capture_output=True, text=True, env=mutate_env(),
             )
         finally:
             path.write_text(orig, encoding="utf-8")
-        verdict = "KILLED" if r.returncode else "SURVIVED"
-        survived += r.returncode == 0
+        failures += r.returncode == 0
         fail = next((ln for ln in r.stdout.splitlines() if ln.startswith(("FAILED", "ERROR"))), "")
-        print(f"{name} {verdict} {fail[:150]}")
-    return survived
+        lines.append(f"{name} {'KILLED' if r.returncode else 'SURVIVED'} {fail[:150]}".rstrip())
+    after = porcelain(w)
+    if before is not None and after != before:
+        changed = sorted(set(after.splitlines()) - set(before.splitlines()))
+        lines.append("TREE CHANGED after the drives: " + "; ".join(changed))
+        failures += 1
+    return lines, failures
+
+
+def mutate(w: pathlib.Path, muts: list) -> int:
+    lines, failures = run_mutations(w, muts, find_python(w))
+    for ln in lines:
+        print(ln)
+    return failures
+
+
+def forms(rendered: str) -> list[str]:
+    """The texts a rendered fence body can have come from, exact first.
+
+    fence() adds a newline only to text that lacks one, so the body without its
+    last newline is a possible source only if it does not itself end in one.
+    """
+    stripped = rendered[:-1]
+    return [rendered] if stripped.endswith("\n") else [rendered, stripped]
 
 
 def lang_of(path: str) -> str:
@@ -183,6 +217,31 @@ def render_steps(steps: list, start: int, prefix: str) -> str:
             body = f"{FIND}\n\n" + fence(s["old"], lang) + f"\n{REPLACE_WITH}\n\n" + fence(s["new"], lang)
         out.append(head + body)
     return "\n".join(out)
+
+
+def render_mutations(muts: list) -> str:
+    out = []
+    for name, rel, old, new, test in muts:
+        lang = lang_of(rel)
+        out.append(f"- [ ] **{name}** in `{rel}`: replace\n\n{fence(old, lang)}\nwith\n\n{fence(new, lang)}\n"
+                   f"Killer: `{test}`\n\n")
+    return "".join(out)
+
+
+MUT_HEAD = re.compile(r"^- \[ \] \*\*(M[^*]*)\*\* in `([^`]+)`: replace\n", re.M)
+KILLER = re.compile(r"^Killer: `([^`]+)`", re.M)
+
+
+def parse_mutations(text: str) -> list[dict]:
+    """The mutations of a tasks.md written by render_mutations, bodies as rendered."""
+    heads = list(MUT_HEAD.finditer(text))
+    muts = []
+    for n, h in enumerate(heads):
+        seg = text[h.end():heads[n + 1].start() if n + 1 < len(heads) else len(text)]
+        bodies = [m.group(2) for m in FENCE_BODY.finditer(seg)]
+        muts.append({"name": h.group(1), "path": h.group(2), "old": bodies[0], "new": bodies[1],
+                     "test": KILLER.search(seg).group(1)})
+    return muts
 
 
 STEP_HEAD = re.compile(r"^- \[ \] \*\*([TI]\d+)\*\* `([^`]+)` — ", re.M)
@@ -244,8 +303,7 @@ def main() -> None:
         print("\n## 2. Implementation (expect GREEN)\n")
         print(render_steps(plan.IMPL, 1, "I"))
         print("\n## 3. Mutation drives (each must be KILLED; restore the file after each)\n")
-        for name, rel, old, new, test in plan.MUTATIONS:
-            print(f"- [ ] **{name}** in `{rel}`: replace\n\n{fence(old, lang_of(rel))}\nwith\n\n{fence(new, lang_of(rel))}\nKiller: `{test}`\n")
+        print(render_mutations(plan.MUTATIONS), end="")
     else:
         raise SystemExit(f"unknown command {cmd}")
 

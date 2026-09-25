@@ -137,3 +137,13 @@ def test_main_writes_the_allowed_file_with_the_spec_directory(repo_with_worktree
     allowed.write_text("  - `src/x.py`\n")
     mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(gates_file), str(allowed)])
     assert (wt / "ALLOWED-42.txt").read_text() == "  - `src/x.py`\n  - `openspec/changes/fix-x/`\n"
+
+
+def test_briefing_has_the_builder_drive_mutations_with_the_runner(repo_with_worktree):
+    _, _, briefing, _ = brief(repo_with_worktree)
+    assert f"python3 {mkbrief.MUTATE} openspec/changes/fix-x/tasks.md ." in briefing
+
+
+def test_reviewer_prompt_re_drives_two_mutations_on_a_scratch_copy(repo_with_worktree):
+    _, wt, _, prompt = brief(repo_with_worktree)
+    assert f"python3 {mkbrief.MUTATE} {wt}/openspec/changes/fix-x/tasks.md {wt} --scratch --only " in prompt

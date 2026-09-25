@@ -18,6 +18,10 @@ The `/herd` skill and the toolkit it runs on.
     counts all count). `gates.py manifest <worktree> <base> --allowed <file>`
     lists every changed file, untracked ones included, and flags any file
     outside the allowed list. Coordination files and `SCRATCH-*` are ignored.
+  - `mutate.py <tasks.md> <worktree> [--only M1,M2] [--scratch]` drives the
+    mutations in `tasks.md`: KILLED with the failing test, SURVIVED, VOID
+    when an anchor is not unique, TREE CHANGED when a drive left the tree
+    different. `--scratch` drives a copy, for reviewers.
   - `wait_file.sh` and `watch_review.sh` wait on the files agents write,
     which is the reliable completion signal.
 
