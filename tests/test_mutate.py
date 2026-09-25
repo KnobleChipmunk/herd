@@ -141,3 +141,54 @@ def test_a_mid_line_fragment_resolves_both_texts_without_the_fence_newline(tmp_p
     (tmp_path / "m.py").write_text("x = f(a, b) + 1\n")
     rendered = {"name": "M1", "path": "m.py", "old": "f(a, b)\n", "new": "g(a, b)\n", "test": "t"}
     assert mutate.resolve(tmp_path, rendered) == ("M1", "m.py", "f(a, b)", "g(a, b)", "t")
+
+
+# A drive whose killer never ran proves nothing either way (project-mera
+# #460): node-driven killers were skipped because the drive's PATH had no
+# node, pytest exited 0 on the skips, and six page mutations read SURVIVED;
+# a killer id pytest could not resolve exited non-zero and read KILLED.
+
+def test_a_skipped_killer_is_not_run_rather_than_survived(build):
+    (build / "tests" / "test_skip.py").write_text(
+        "import pytest\n\n\n@pytest.mark.skip(reason='no node')\ndef test_skipped():\n    assert False\n")
+    muts = [("M1", "src/calc.py", "return a + b\n", "return a - b\n", "tests/test_skip.py::test_skipped")]
+    lines, failures = mutate.drive(render_tasks(muts), build)
+    assert lines[0].startswith("M1 NOT RUN")
+    assert failures == 1
+
+
+def test_a_killer_pytest_cannot_find_is_not_run_rather_than_killed(build):
+    muts = [("M1", "src/calc.py", "return a + b\n", "return a - b\n", "tests/test_calc.py::test_nope")]
+    lines, failures = mutate.drive(render_tasks(muts), build)
+    assert lines[0].startswith("M1 NOT RUN")
+    assert failures == 1
+
+
+def test_a_mutation_that_breaks_the_import_is_still_killed(build):
+    muts = [("M1", "src/calc.py", "return a + b\n", "return a +\n", "tests/test_calc.py::test_add")]
+    lines, _ = mutate.drive(render_tasks(muts), build)
+    assert lines[0].startswith("M1 KILLED")
+
+
+def test_a_test_that_rewrites_an_already_changed_file_is_reported(build):
+    """A fixture the tests write was already untracked, so its status letter
+    never changed when a mutated run rewrote its contents."""
+    (build / "fixture.json").write_text("good\n")
+    (build / "tests" / "test_writes.py").write_text(
+        "import pathlib\n\n\ndef test_writes():\n    pathlib.Path('fixture.json').write_text('bad\\n')\n")
+    muts = [("M1", "src/calc.py", "return a + b\n", "return a - b\n", "tests/test_writes.py::test_writes")]
+    lines, failures = mutate.drive(render_tasks(muts), build)
+    assert lines[-1] == "TREE CHANGED after the drives: content of fixture.json"
+    assert failures == 2
+
+
+def test_a_mutation_an_interrupted_drive_left_behind_is_restored_first(build):
+    calc = build / "src" / "calc.py"
+    original = calc.read_text()
+    calc.write_text(original.replace("return a + b\n", "return a - b\n"))
+    herdtool.write_inflight(build, calc, original)
+    lines, _ = mutate.drive(render_tasks([MUTATIONS[0]]), build)
+    assert lines[0] == "RESTORED src/calc.py, left mutated by an interrupted drive"
+    assert lines[1].startswith("M1 KILLED")
+    assert calc.read_text() == original
+    assert not herdtool.inflight_path(build).exists()
