@@ -68,7 +68,11 @@ user leaves, and before the first dispatch:
 5. **Proposals.** `python3 <herd>/tools/proposals.py list` prints the
    librarian's pending proposals, most-recurring first. Each `open` one goes
    into the one message too: accept, reject, or leave open. Record each
-   answer with `proposals.py set <stem> accepted|rejected`.
+   answer with `proposals.py set <stem> accepted|rejected`. Then commit
+   everything `git status` shows under the herd repo's `proposals/`: the
+   librarian's new files and `sync`'s applied marks from the last run, and
+   today's answers. Put it on `chore/proposals-sweep-<date>`, and push and PR
+   it unasked (the librarian and `sync` never commit).
 6. **Ask once.** Put every decision, every missing credential, every
    coupling and every open proposal in ONE message. Record each answer with `runlog.py add
    decision-made --issue <id> --text "<answer>"`. An issue whose question

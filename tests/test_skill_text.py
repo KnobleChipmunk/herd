@@ -24,3 +24,11 @@ def test_the_plan_reviewer_brief_draws_the_read_only_line():
     assert "never applies the plan" in brief
     assert "runs its tests or mutations" in brief
     assert "git blobs" in brief
+
+
+def test_the_sweep_commits_what_the_librarian_and_sync_left_in_proposals():
+    """sync and the librarian write files but never commit (#29): the sweep's PR carries them."""
+    text = " ".join(SKILL.read_text().split())
+    sweep = text[text.index("5. **Proposals.**"): text.index("6. **Ask once.**")]
+    assert "chore/proposals-sweep-<date>" in sweep
+    assert "git status" in sweep and "proposals/" in sweep
