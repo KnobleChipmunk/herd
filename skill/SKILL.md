@@ -268,7 +268,10 @@ them.
   marked "at HEAD". Say how many blank lines surround every insert or
   replace.
 - **Measure every gate before writing its expectation (#330), and state
-  its baseline (#321).** Run the exact commands the builder will run and
+  its baseline (#321).** A grep gate is written as `python3
+  <herd>/tools/gates.py count '<text>' <path>…`, never raw `grep -c`: it is
+  literal, a directory counts only its `*.py` files, zero exits 0, and it
+  counts the same in the builder's shell as in the lead's (#459). Run the exact commands the builder will run and
   paste the literal last lines. Gates are "identical to <baseline>" or
   "<baseline> + the delta you name", never absolute, and they are compared
   by counts with `tools/gates.py match` (write the counts, not pytest's

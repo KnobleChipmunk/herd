@@ -2,6 +2,7 @@
 
 usage: gates.py match "<expected line>" [<output file>]   (default: stdin)
        gates.py manifest <worktree> <base ref> [--allowed <file>]
+       gates.py count "<text>" <path>... [--include GLOB] [--regex]
 
 match   compares the last non-blank line of the output with the expected
         line: pytest and mypy lines by their counts (pytest's warnings and
@@ -9,6 +10,10 @@ match   compares the last non-blank line of the output with the expected
 manifest lists every file the worktree changed against <base ref>,
         untracked files included, coordination and evidence files excluded;
         with --allowed, exits 1 when a file is outside the allowed list.
+count   prints how many lines contain <text> (literal unless --regex) in
+        the files named, a directory counting only its *.py files (or
+        --include) outside __pycache__. Zero is an answer: always exits 0,
+        and it counts the same in bash and zsh, which grep -c does not.
 """
 from __future__ import annotations
 
@@ -84,6 +89,22 @@ def outside_allowed(changed: list[tuple[str, str]], allowed_text: str) -> list[s
     return [p for _, p in changed if not any(p == a or (a.endswith("/") and p.startswith(a)) for a in allowed)]
 
 
+def count(text: str, paths: list[pathlib.Path], include: str = "*.py", regex: bool = False) -> int:
+    """Lines matching `text` across `paths`; a directory contributes its `include` files outside __pycache__."""
+    files: list[pathlib.Path] = []
+    for p in paths:
+        if p.is_dir():
+            files += sorted(f for f in p.rglob(include) if f.is_file() and "__pycache__" not in f.parts)
+        else:
+            files.append(p)
+    pattern = re.compile(text) if regex else None
+    total = 0
+    for f in files:
+        for line in f.read_text(errors="replace").splitlines():
+            total += bool(pattern.search(line)) if pattern else text in line
+    return total
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -94,7 +115,15 @@ def main(argv: list[str] | None = None) -> int:
     f.add_argument("worktree")
     f.add_argument("base")
     f.add_argument("--allowed")
+    c = sub.add_parser("count")
+    c.add_argument("text")
+    c.add_argument("paths", nargs="+", type=pathlib.Path)
+    c.add_argument("--include", default="*.py")
+    c.add_argument("--regex", action="store_true")
     a = ap.parse_args(argv)
+    if a.cmd == "count":
+        print(count(a.text, a.paths, a.include, a.regex))
+        return 0
     if a.cmd == "match":
         text = pathlib.Path(a.output).read_text() if a.output else sys.stdin.read()
         problems = compare(a.expected, last_line(text))

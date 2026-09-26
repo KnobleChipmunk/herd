@@ -151,3 +151,33 @@ def test_the_changes_own_spec_copy_is_allowed_through_the_allowed_file_mkbrief_w
     changed = gates.manifest(build, "main")
     allowed = "- src/a.py\n- src/new.py\n  - `openspec/changes/fix-x/`\n"
     assert gates.outside_allowed(changed, allowed) == ["openspec/changes/fix-y/tasks.md"]
+
+
+def test_count_is_literal_so_shell_and_regex_characters_mean_themselves(tmp_path):
+    page = tmp_path / "check.html"
+    page.write_text("$('press').disabled = x;\n$('press').disabled = y;\nother\n")
+    assert gates.count("$('press').disabled", [page]) == 2
+    assert gates.count("a.b", [page]) == 0
+
+
+def test_count_sweeps_only_python_files_in_a_directory_and_skips_bytecode(tmp_path):
+    src = tmp_path / "src"
+    (src / "__pycache__").mkdir(parents=True)
+    (src / "a.py").write_text("folded over every pull\n")
+    (src / "b.txt").write_text("folded over every pull\n")
+    (src / "__pycache__" / "a.cpython-312.pyc").write_bytes(b"folded over every pull\n")
+    assert gates.count("folded over every pull", [src]) == 1
+    assert gates.count("folded over every pull", [src], include="*.txt") == 1
+
+
+def test_count_command_prints_zero_and_exits_zero_on_no_match(tmp_path, capsys):
+    f = tmp_path / "a.py"
+    f.write_text("x = 1\n")
+    assert gates.main(["count", "nothing here", str(f)]) == 0
+    assert capsys.readouterr().out == "0\n"
+
+
+def test_count_regex_is_opt_in(tmp_path):
+    f = tmp_path / "a.py"
+    f.write_text('group["difficulty"])\n')
+    assert gates.count(r'group\["difficulty"\]\)', [f], regex=True) == 1
