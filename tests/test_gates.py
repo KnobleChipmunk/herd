@@ -136,3 +136,18 @@ def test_only_root_level_files_count_as_coordination(build):
     (build / "REVIEW-tools").mkdir()
     (build / "REVIEW-tools" / "helper.py").write_text("x\n")
     assert ("A", "REVIEW-tools/helper.py") in gates.manifest(build, "main")
+
+
+def test_a_lead_ruling_file_is_coordination_not_a_change(build):
+    (build / "RULING-7-1.md").write_text("x\n")
+    assert gates.manifest(build, "main") == [("M", "src/a.py"), ("A", "src/new.py")]
+
+
+def test_the_changes_own_spec_copy_is_allowed_through_the_allowed_file_mkbrief_writes(build):
+    """mkbrief appends `openspec/changes/<change>/` to ALLOWED; only that change's copy passes."""
+    for name in ("fix-x", "fix-y"):
+        (build / "openspec" / "changes" / name).mkdir(parents=True)
+        (build / "openspec" / "changes" / name / "tasks.md").write_text("x\n")
+    changed = gates.manifest(build, "main")
+    allowed = "- src/a.py\n- src/new.py\n  - `openspec/changes/fix-x/`\n"
+    assert gates.outside_allowed(changed, allowed) == ["openspec/changes/fix-y/tasks.md"]
