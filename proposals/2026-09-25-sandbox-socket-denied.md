@@ -1,6 +1,6 @@
 # Proposal: Herdr notification socket blocked by the sandbox
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/28
 
 ## Class
 

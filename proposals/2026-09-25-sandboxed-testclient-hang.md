@@ -1,6 +1,6 @@
 # Proposal: sandboxed Starlette TestClient hang
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/28
 
 ## Class
 
