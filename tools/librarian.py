@@ -123,8 +123,20 @@ def friction_append(ledger: pathlib.Path, slug: str, title: str, line: str) -> i
                       default=head)
     lines.insert(last_bullet + 1, line)
     ledger.write_text("\n".join(lines) + "\n")
-    block = lines[head + 1:end + 1]
-    return sum(1 for ln in block if re.match(r"- \d{4}-\d{2}-\d{2} ", ln) and "**outcome" not in ln)
+    return class_counts(ledger)[slug]
+
+
+def class_counts(ledger: pathlib.Path) -> dict[str, int]:
+    """Each friction class's event count: its dated bullets, not its outcome lines."""
+    counts: dict[str, int] = {}
+    slug = None
+    for ln in ledger.read_text().splitlines() if ledger.exists() else []:
+        if ln.startswith("## "):
+            slug = ln[3:].split(" (", 1)[0].strip()
+            counts[slug] = 0
+        elif slug and re.match(r"- \d{4}-\d{2}-\d{2} ", ln) and "**outcome" not in ln:
+            counts[slug] += 1
+    return counts
 
 
 def retros(main: pathlib.Path, events: list[dict]) -> list[pathlib.Path]:

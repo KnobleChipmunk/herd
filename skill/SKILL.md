@@ -65,8 +65,12 @@ user leaves, and before the first dispatch:
    budget or model tier, a data source, a scope cut ("part 1 only?"). And
    for each pair on a stack, whether issue N+1 changes something issue N's
    tests rely on (#422 turned #421's rejected payloads into accepted ones).
-5. **Ask once.** Put every decision, every missing credential and every
-   coupling in ONE message. Record each answer with `runlog.py add
+5. **Proposals.** `python3 <herd>/tools/proposals.py list` prints the
+   librarian's pending proposals, most-recurring first. Each `open` one goes
+   into the one message too: accept, reject, or leave open. Record each
+   answer with `proposals.py set <stem> accepted|rejected`.
+6. **Ask once.** Put every decision, every missing credential, every
+   coupling and every open proposal in ONE message. Record each answer with `runlog.py add
    decision-made --issue <id> --text "<answer>"`. An issue whose question
    is unanswered starts parked.
 
@@ -102,6 +106,12 @@ sat idle.
   closing report.
 - **The retrospective and the closing report come once**, after the last
   PR of the assignment, not after each PR.
+- **Accepted proposals are part of the assignment.** After the last PR of
+  the issues, build each `accepted` proposal in the herd repo, test-first,
+  as its own `chore/` PR (the herd's push exception covers a `chore/`
+  branch amending the loop's rules), then `proposals.py set <stem> in-pr
+  --pr <url>`. The operator merges it; the librarian's `proposals.py sync`
+  marks it applied, and only then grades its prediction.
 
 ## Size tier — decide at pick time (#330)
 
@@ -381,7 +391,8 @@ lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
        clean?    → commit on branch → push → open PR, same turn
        → more PRs in the assignment? cut the next branch from this one → spec → the loop again
        → RETRO (after the last PR): ask all three agents "what would you improve in the skill?"
-       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + "the librarian starts itself after --apply"
+       → accepted proposals: each built as its own herd `chore/` PR, `proposals.py set <stem> in-pr --pr <url>`
+       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + "the librarian starts itself after --apply" + `proposals.py list`
        (user runs merge_stack.py, then --apply: merge in order, pull, clean up)
        → openspec archive on a chore branch, pushed and PR'd unasked
 ```
@@ -478,8 +489,12 @@ log records the start, so a re-run does not file everything twice.
 vault's `herd-ledger.md`, files every friction line and retro item under a
 class in `friction-ledger.md`, and writes a proposal to `proposals/` when a
 class reaches two events. It commits nothing; a proposal becomes a change to
-this skill or its tools only through a PR the operator merges. The closing
-report ends with the merge_stack command.
+this skill or its tools only through a PR the operator merges. Each proposal
+carries a `Status:` line (`tools/proposals.py`): `open` until the sweep's
+question settles it, `accepted` or `rejected`, `in-pr <url>` once the lead
+opens its PR, and `applied` when the librarian's `proposals.py sync` sees
+that PR merged. The closing report ends with the merge_stack command and the
+`proposals.py list` output.
 
 ## Monitoring
 

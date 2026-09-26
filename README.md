@@ -56,7 +56,10 @@ ln -s ~/projects/herd/hermes/herd-librarian ~/.hermes/skills/herd-librarian
 `hermes/herd-librarian/` is the Hermes skill that files a finished run into
 the vault ledgers with `tools/librarian.py`. `merge_stack.py --apply`
 starts it; its report is a `librarian-<time>.log` next to the run log. Its
-proposals land in `proposals/`, which the operator turns into PRs.
+proposals land in `proposals/`, each with a `Status:` line that
+`tools/proposals.py` manages: the lead asks about `open` ones in its
+pre-run sweep, builds `accepted` ones as herd PRs, and the librarian marks
+them applied when those PRs merge.
 
 ## Configuration
 
