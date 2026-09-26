@@ -1,6 +1,6 @@
 # Proposal: skill gives conflicting plan-reviewer execution rules
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/25
 
 ## Class
 
