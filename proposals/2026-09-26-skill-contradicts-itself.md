@@ -1,6 +1,6 @@
 # Proposal: skill gives conflicting plan-reviewer execution rules
 
-Status: open
+Status: accepted
 
 ## Class
 

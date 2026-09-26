@@ -1,6 +1,6 @@
 # Proposal: sandboxed Starlette TestClient hang
 
-Status: open
+Status: accepted
 
 ## Class
 

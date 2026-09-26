@@ -1,6 +1,6 @@
 # Proposal: mutation engine false verdicts
 
-Status: open
+Status: applied https://github.com/KnobleChipmunk/herd/pull/15 2026-09-25
 
 ## Class
 
