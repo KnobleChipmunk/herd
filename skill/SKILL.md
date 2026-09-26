@@ -78,6 +78,31 @@ there: start a new stack from `main` with the independent issues, or stop if
 none remain. The closing report opens with the `OPEN` lines of
 `runlog.py status`.
 
+## The assignment is the whole task (#459)
+
+A run completes everything it was assigned, as if the operator is away
+from the computer. The scope has grown as trust in the loop has built. When
+an issue or task is delivered as several PRs and they are in scope, every
+one of them is part of the run. "#N PR 1" names where the run starts, not
+where it ends. #459 stopped after PR 1 with three PRs unbuilt, and the team
+sat idle.
+
+- **Confirm the scope once, at the start.** The invocation may have come
+  from an autocomplete suggestion. The first message says which issues and
+  PRs the run covers and where it ends. If that reading is not certain,
+  the question goes into the sweep's one message. After that, no check-ins.
+- **Stack, don't wait.** An unmerged PR is not a gate. Once PR N is pushed
+  and open, cut PR N+1's branch from PR N's branch, measure its gates on
+  that branch, and start its spec in the same turn. The operator merges
+  the stack in order with `merge_stack.py`.
+- **Stopping early needs a reason the operator owns:** a decision only
+  they can make, an operator gate, or a stop condition the work itself
+  names. Park that item (`decision-needed`) and carry on with whatever does
+  not depend on it. If nothing remains, stop, and say so first in the
+  closing report.
+- **The retrospective and the closing report come once**, after the last
+  PR of the assignment, not after each PR.
+
 ## Size tier — decide at pick time (#330)
 
 The loop's fixed cost (spec + plan review + worktree + briefing + review +
@@ -295,7 +320,8 @@ them.
   them re-runs the full suite only when the handoff's tail is missing or
   does not match the gate expectation.
 - **Retrospective, after all agents report DONE (#321).** Once the final
-  review is clean and the PR is pushed, and before the closing report:
+  review of the assignment's LAST PR is clean and that PR is pushed, and
+  before the closing report:
   prompt EACH live herd agent (`pi_build`, `codex_review`,
   `codex_plan_reviewer`) with exactly — "What would you improve in the herd
   skill after this run? Reply with concrete, numbered items grounded in
@@ -353,7 +379,8 @@ codex_review: "REVIEW CLEAN" → lead;  pi_build: "DONE: …" → lead
 lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
        findings? → builder fixes → gates → reviewer re-signs → DONE again → re-review the delta
        clean?    → commit on branch → push → open PR, same turn
-       → RETRO: ask all three agents "what would you improve in the skill?"
+       → more PRs in the assignment? cut the next branch from this one → spec → the loop again
+       → RETRO (after the last PR): ask all three agents "what would you improve in the skill?"
        → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + "the librarian starts itself after --apply"
        (user runs merge_stack.py, then --apply: merge in order, pull, clean up)
        → openspec archive on a chore branch, pushed and PR'd unasked
