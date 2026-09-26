@@ -1,6 +1,6 @@
 # Proposal: gates.py manifest flags openspec/changes/ as OUTSIDE ALLOWED despite the brief's exemption
 
-Status: open
+Status: accepted
 
 ## Class
 

@@ -1,6 +1,6 @@
 # Proposal: fencecheck prints FENCES OK (n steps) but the prompt calls for bare FENCES OK
 
-Status: open
+Status: accepted
 
 ## Class
 

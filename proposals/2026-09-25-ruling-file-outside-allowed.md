@@ -1,6 +1,6 @@
 # Proposal: RULING-* files outside the coordination exemption list
 
-Status: open
+Status: accepted
 
 ## Class
 

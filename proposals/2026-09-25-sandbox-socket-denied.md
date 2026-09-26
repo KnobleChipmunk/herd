@@ -1,6 +1,6 @@
 # Proposal: Herdr notification socket blocked by the sandbox
 
-Status: open
+Status: accepted
 
 ## Class
 

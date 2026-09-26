@@ -1,6 +1,6 @@
 # Proposal: zero-count grep gate exits 1 and reads like a failure
 
-Status: open
+Status: accepted
 
 ## Class
 

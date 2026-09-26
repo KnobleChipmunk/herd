@@ -217,6 +217,10 @@ implementation reproduces passes tests AND mutations), challenge catalog
 membership / design conventions / boundary cases, check every text anchor
 resolves uniquely at HEAD, every gate is a measured literal with its
 baseline named, and blank-line separation is stated for every insert.
+Tell it where its line is: it may read files and git blobs, do its own
+arithmetic, inspect code, and project the fences onto the base in memory;
+it never applies the plan, imports the plan's code, or runs its tests or
+mutations. The lead's pre-execution is the execution evidence.
 Have it write findings to `PLAN-REVIEW-<id>-round-N.md` in the repo root
 and reply with only the path plus its verdict line (APPROVE / REVISE).
 
@@ -325,10 +329,10 @@ them.
   operator's Hard Constraints.
 - **The full suite runs once per build, by the builder (#330).** Its
   literal tail lives in the handoff (the lead's pre-execution run of the
-  suite is separate and earlier). The plan reviewer, codex_review, and
-  the lead's final pass run the touched test files plus the grep gate; any of
-  them re-runs the full suite only when the handoff's tail is missing or
-  does not match the gate expectation.
+  suite is separate and earlier). codex_review and the lead's final pass
+  run the touched test files plus the grep gate; either re-runs the full
+  suite only when the handoff's tail is missing or does not match the gate
+  expectation. The plan reviewer runs nothing (see its brief).
 - **Retrospective, after all agents report DONE (#321).** Once the final
   review of the assignment's LAST PR is clean and that PR is pushed, and
   before the closing report:
