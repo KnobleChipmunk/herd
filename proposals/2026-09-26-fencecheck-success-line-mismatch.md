@@ -1,6 +1,6 @@
 # Proposal: fencecheck prints FENCES OK (n steps) but the prompt calls for bare FENCES OK
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/26
 
 ## Class
 

@@ -25,7 +25,7 @@ MYPY_FOUND = re.compile(r"Found (\d+) errors? in (\d+) files? \(checked (\d+) so
 
 # Root-level files the herd writes into a build worktree; never part of the change.
 COORDINATION = ("BUILD-BRIEFING-*", "HANDOFF-*", "REVIEW-*", "CODEX-*", "ALLOWED-*", "RED-*", "GREEN-*",
-                "FULLSUITE*", "MUTATION-LOG*", "SCRATCH-*")
+                "FULLSUITE*", "MUTATION-LOG*", "SCRATCH-*", "RULING-*")
 
 
 def parse(line: str) -> tuple[str, object]:

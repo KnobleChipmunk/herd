@@ -1,6 +1,6 @@
 # Proposal: gates.py manifest flags openspec/changes/ as OUTSIDE ALLOWED despite the brief's exemption
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/26
 
 ## Class
 

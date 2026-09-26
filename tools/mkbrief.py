@@ -13,6 +13,8 @@ import os
 import pathlib
 import subprocess
 
+import fencecheck
+import gates
 from herdtool import find_python, main_checkout
 
 FENCECHECK = pathlib.Path(__file__).resolve().parent / "fencecheck.py"
@@ -161,7 +163,7 @@ Lead rulings in force: RULINGS_PLACEHOLDER
 Do this:
 1. Read the spec, then the handoff, then the diff.
 2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -m pytest <touched test files> -q --no-header`, plus the ruff, mypy and grep gates in tasks.md. Record the commands and their last lines.
-3. Check the build against tasks.md: the fences are byte-exact reference text, so run `python3 {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — every line it prints other than `FENCES OK` is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; BUILD-BRIEFING/HANDOFF/REVIEW/CODEX files are coordination files, not findings.
+3. Check the build against tasks.md: the fences are byte-exact reference text, so run `python3 {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — a line starting `{fencecheck.OK}` (it prints `{fencecheck.OK} (<n> steps)`) is success, and every other line it prints is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; root files matching {", ".join(f"`{p}`" for p in gates.COORDINATION)} are coordination files, and `openspec/changes/{change}/` is the change's own spec copy, allowed by the ALLOWED file: neither is a finding.
 4. Re-drive two mutations of your choice on a scratch copy, which never touches the build: `python3 {MUTATE} {w}/openspec/changes/{change}/tasks.md {w} --scratch --only <name>,<name>`. A result that differs from the handoff's mutation log is a finding.
 5. Report ONLY CONFIRMED defects — ones you reproduced or can show at file:line — each with an exact fix. Do not propose work the proposal's Non-goals exclude, new subsystems, persistence, or refactors.
 
