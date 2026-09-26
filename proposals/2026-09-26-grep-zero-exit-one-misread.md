@@ -1,6 +1,6 @@
 # Proposal: zero-count grep gate exits 1 and reads like a failure
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/27
 
 ## Class
 
