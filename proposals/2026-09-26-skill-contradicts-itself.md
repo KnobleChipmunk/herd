@@ -1,6 +1,6 @@
 # Proposal: skill gives conflicting plan-reviewer execution rules
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/25
+Status: applied https://github.com/KnobleChipmunk/herd/pull/25 2026-09-26
 
 ## Class
 
