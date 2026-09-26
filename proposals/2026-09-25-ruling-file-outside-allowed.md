@@ -1,6 +1,6 @@
 # Proposal: RULING-* files outside the coordination exemption list
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/26
 
 ## Class
 
