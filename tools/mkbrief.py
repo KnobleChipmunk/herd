@@ -148,10 +148,23 @@ carry on (it feeds the post-run review; it is not a message to the lead):
 """
 
 
+# Codex's sandbox hangs Starlette's TestClient and denies the herdr socket; both
+# were retried out of it in every #459 review (sandboxed-testclient-hang,
+# sandbox-socket-denied). A Claude fallback reviewer has no such sandbox.
+CODEX_SANDBOX = (
+    "Sandbox: run every pytest command, every mutate.py drive, and every `herdr agent prompt` "
+    "outside the sandbox (request escalated permissions) on the FIRST attempt. In the sandbox the "
+    "test client hangs and the herdr socket is denied; neither is a finding, and diagnosing it costs "
+    "the round. Give each pytest run a 600-second timeout (`timeout 600` in front of the command), so a "
+    "hang ends as an answer."
+)
+
+
 def build_reviewer_prompt(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str, python: str,
                           lead_pane: str, reviewer: str, **_: object) -> str:
     w = worktree
     sha = base_sha(worktree, base)
+    sandbox = f"\n{CODEX_SANDBOX}\n" if reviewer.startswith("codex") else ""
     return f"""You are the REVIEWER for herd build #{id}, review round ROUND_N. Do NOT edit any file except your review file. Do NOT commit.
 
 Worktree (the build under review): {w}
@@ -159,7 +172,7 @@ Branch {branch}, base {base} at {sha} (the build is uncommitted). List what chan
 Spec: {w}/openspec/changes/{change}/ (proposal.md, design.md if present, specs/, tasks.md). The spec directory itself is part of the change, not a finding.
 Handoff: {w}/HANDOFF-{id}.md — it carries the full-suite tail verbatim; do NOT re-run the full suite unless that tail is missing or contradicts the gate in tasks.md section 0.
 Lead rulings in force: RULINGS_PLACEHOLDER
-
+{sandbox}
 Do this:
 1. Read the spec, then the handoff, then the diff.
 2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -m pytest <touched test files> -q --no-header`, plus the ruff, mypy and grep gates in tasks.md. Record the commands and their last lines.

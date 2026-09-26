@@ -170,3 +170,17 @@ def test_reviewer_prompt_reads_the_fence_checkers_success_line_as_success(repo_w
     _, _, _, prompt = brief(repo_with_worktree)
     assert "other than `FENCES OK` is a finding" not in prompt
     assert f"a line starting `{fencecheck.OK}`" in prompt
+
+
+def test_a_codex_reviewer_runs_tests_and_herdr_outside_its_sandbox_from_the_first_try(repo_with_worktree):
+    _, _, _, prompt = brief(repo_with_worktree)
+    assert mkbrief.CODEX_SANDBOX in prompt
+    assert "outside the sandbox" in mkbrief.CODEX_SANDBOX
+    for command in ("pytest", "herdr agent prompt", "mutate.py"):
+        assert command in mkbrief.CODEX_SANDBOX, command
+    assert "timeout 600" in mkbrief.CODEX_SANDBOX
+
+
+def test_a_claude_reviewer_gets_no_codex_sandbox_rule(repo_with_worktree):
+    _, _, _, prompt = brief(repo_with_worktree, reviewer="claude_review")
+    assert mkbrief.CODEX_SANDBOX not in prompt
