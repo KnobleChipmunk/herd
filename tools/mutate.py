@@ -21,6 +21,16 @@ import tempfile
 from herdtool import find_python, forms, parse_mutations, run_mutations
 
 
+def is_pytest(argv: list[str]) -> bool:
+    """Whether a command line runs pytest: `pytest ...`, `.../pytest ...`, or
+    `python -m pytest ...`. An argument that only mentions pytest, such as a
+    reviewer prompt passed to `herdr agent prompt`, is not pytest."""
+    names = [pathlib.PurePath(arg).name for arg in argv]
+    if any(name in ("pytest", "py.test") for name in names):
+        return True
+    return any(a == "-m" and b == "pytest" for a, b in zip(argv, argv[1:]))
+
+
 def pytest_running_in(w: pathlib.Path) -> bool:
     w = w.resolve()
     for proc in pathlib.Path("/proc").glob("[0-9]*"):
@@ -31,7 +41,8 @@ def pytest_running_in(w: pathlib.Path) -> bool:
             argv = (proc / "cmdline").read_bytes().split(b"\0")
         except OSError:
             continue
-        if (cwd == w or w in cwd.parents) and any(b"pytest" in arg for arg in argv):
+        args = [arg.decode(errors="replace") for arg in argv if arg]
+        if (cwd == w or w in cwd.parents) and is_pytest(args):
             return True
     return False
 

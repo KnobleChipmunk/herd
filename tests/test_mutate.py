@@ -117,6 +117,25 @@ def test_refuses_while_pytest_runs_in_the_worktree(build):
         proc.wait()
 
 
+def test_a_process_that_only_mentions_pytest_does_not_block_the_drive(build):
+    """A builder's `herdr agent prompt codex_review "<prompt>"`, run from the
+    worktree, carries a prompt that says "pytest"; it is not pytest."""
+    prompt = "Run the touched test files with pytest, then re-drive two mutations."
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", prompt], cwd=build)
+    try:
+        time.sleep(0.2)
+        lines, _ = mutate.drive(render_tasks(), build, only={"M1"})
+        assert lines[0].startswith("M1 KILLED")
+    finally:
+        proc.kill()
+        proc.wait()
+
+
+@pytest.mark.parametrize("argv", [["pytest", "-q"], ["/venv/bin/pytest"], ["python", "-m", "pytest", "-q"]])
+def test_each_way_of_running_pytest_is_seen(build, argv):
+    assert mutate.is_pytest(argv)
+
+
 def test_main_exits_nonzero_when_anything_survives(build, capsys):
     tasks = build / "SCRATCH-tasks.md"
     tasks.write_text(render_tasks([MUTATIONS[0], MUTATIONS[1]]))
