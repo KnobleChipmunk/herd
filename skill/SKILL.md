@@ -65,8 +65,12 @@ user leaves, and before the first dispatch:
    budget or model tier, a data source, a scope cut ("part 1 only?"). And
    for each pair on a stack, whether issue N+1 changes something issue N's
    tests rely on (#422 turned #421's rejected payloads into accepted ones).
-5. **Ask once.** Put every decision, every missing credential and every
-   coupling in ONE message. Record each answer with `runlog.py add
+5. **Proposals.** `python3 <herd>/tools/proposals.py list` prints the
+   librarian's pending proposals, most-recurring first. Each `open` one goes
+   into the one message too: accept, reject, or leave open. Record each
+   answer with `proposals.py set <stem> accepted|rejected`.
+6. **Ask once.** Put every decision, every missing credential, every
+   coupling and every open proposal in ONE message. Record each answer with `runlog.py add
    decision-made --issue <id> --text "<answer>"`. An issue whose question
    is unanswered starts parked.
 
@@ -102,6 +106,12 @@ sat idle.
   closing report.
 - **The retrospective and the closing report come once**, after the last
   PR of the assignment, not after each PR.
+- **Accepted proposals are part of the assignment.** After the last PR of
+  the issues, build each `accepted` proposal in the herd repo, test-first,
+  as its own `chore/` PR (the herd's push exception covers a `chore/`
+  branch amending the loop's rules), then `proposals.py set <stem> in-pr
+  --pr <url>`. The operator merges it; the librarian's `proposals.py sync`
+  marks it applied, and only then grades its prediction.
 
 ## Size tier — decide at pick time (#330)
 
@@ -208,6 +218,10 @@ implementation reproduces passes tests AND mutations), challenge catalog
 membership / design conventions / boundary cases, check every text anchor
 resolves uniquely at HEAD, every gate is a measured literal with its
 baseline named, and blank-line separation is stated for every insert.
+Tell it where its line is: it may read files and git blobs, do its own
+arithmetic, inspect code, and project the fences onto the base in memory;
+it never applies the plan, imports the plan's code, or runs its tests or
+mutations. The lead's pre-execution is the execution evidence.
 Have it write findings to `PLAN-REVIEW-<id>-round-N.md` in the repo root
 and reply with only the path plus its verdict line (APPROVE / REVISE).
 
@@ -255,7 +269,10 @@ them.
   marked "at HEAD". Say how many blank lines surround every insert or
   replace.
 - **Measure every gate before writing its expectation (#330), and state
-  its baseline (#321).** Run the exact commands the builder will run and
+  its baseline (#321).** A grep gate is written as `python3
+  <herd>/tools/gates.py count '<text>' <path>…`, never raw `grep -c`: it is
+  literal, a directory counts only its `*.py` files, zero exits 0, and it
+  counts the same in the builder's shell as in the lead's (#459). Run the exact commands the builder will run and
   paste the literal last lines. Gates are "identical to <baseline>" or
   "<baseline> + the delta you name", never absolute, and they are compared
   by counts with `tools/gates.py match` (write the counts, not pytest's
@@ -316,10 +333,10 @@ them.
   operator's Hard Constraints.
 - **The full suite runs once per build, by the builder (#330).** Its
   literal tail lives in the handoff (the lead's pre-execution run of the
-  suite is separate and earlier). The plan reviewer, codex_review, and
-  the lead's final pass run the touched test files plus the grep gate; any of
-  them re-runs the full suite only when the handoff's tail is missing or
-  does not match the gate expectation.
+  suite is separate and earlier). codex_review and the lead's final pass
+  run the touched test files plus the grep gate; either re-runs the full
+  suite only when the handoff's tail is missing or does not match the gate
+  expectation. The plan reviewer runs nothing (see its brief).
 - **Retrospective, after all agents report DONE (#321).** Once the final
   review of the assignment's LAST PR is clean and that PR is pushed, and
   before the closing report:
@@ -394,7 +411,8 @@ lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
        → more PRs in the assignment? cut the next branch from this one → spec → the loop again
        → RETRO (after the last PR): ask all three agents "what would you improve in the skill?"
        → SHUT DOWN: /quit (or /exit) each herd agent, confirm it left `herdr agent list`, close its pane
-       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + "the librarian starts itself after --apply" + each agent's resume command
+       → accepted proposals: each built as its own herd `chore/` PR, `proposals.py set <stem> in-pr --pr <url>`
+       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + "the librarian starts itself after --apply" + each agent's resume command + `proposals.py list`
        (user runs merge_stack.py, then --apply: merge in order, pull, clean up)
        → openspec archive on a chore branch, pushed and PR'd unasked
 ```
@@ -491,8 +509,12 @@ log records the start, so a re-run does not file everything twice.
 vault's `herd-ledger.md`, files every friction line and retro item under a
 class in `friction-ledger.md`, and writes a proposal to `proposals/` when a
 class reaches two events. It commits nothing; a proposal becomes a change to
-this skill or its tools only through a PR the operator merges. The closing
-report ends with the merge_stack command.
+this skill or its tools only through a PR the operator merges. Each proposal
+carries a `Status:` line (`tools/proposals.py`): `open` until the sweep's
+question settles it, `accepted` or `rejected`, `in-pr <url>` once the lead
+opens its PR, and `applied` when the librarian's `proposals.py sync` sees
+that PR merged. The closing report ends with the merge_stack command and the
+`proposals.py list` output.
 
 ## Monitoring
 

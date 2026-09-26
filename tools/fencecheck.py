@@ -19,6 +19,8 @@ import sys
 
 from herdtool import forms, parse_tasks, step_problem
 
+OK = "FENCES OK"  # the start of the one success line; the reviewer prompt reads it from here
+
 
 def resolve(w: pathlib.Path, step: dict) -> dict:
     """The step with each fence body replaced by the source form found in the file."""
@@ -57,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     for p in problems:
         print(p)
     if not problems:
-        print(f"FENCES OK ({len(steps)} steps)")
+        print(f"{OK} ({len(steps)} steps)")
     return 1 if problems else 0
 
 

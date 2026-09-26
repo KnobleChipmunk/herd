@@ -155,3 +155,32 @@ def test_builder_and_reviewer_log_friction_to_the_run_log_under_their_own_names(
             in briefing)
     assert (f'python3 {mkbrief.RUNLOG} add friction --repo {wt} --issue 42 --agent codex_review --text "<what cost'
             in prompt)
+
+
+def test_reviewer_prompt_names_what_the_manifest_skips_from_the_manifests_own_list(repo_with_worktree):
+    import gates
+    _, _, _, prompt = brief(repo_with_worktree)
+    for pattern in gates.COORDINATION:
+        assert f"`{pattern}`" in prompt, pattern
+    assert "`openspec/changes/fix-x/` is the change's own spec copy" in prompt
+
+
+def test_reviewer_prompt_reads_the_fence_checkers_success_line_as_success(repo_with_worktree):
+    import fencecheck
+    _, _, _, prompt = brief(repo_with_worktree)
+    assert "other than `FENCES OK` is a finding" not in prompt
+    assert f"a line starting `{fencecheck.OK}`" in prompt
+
+
+def test_a_codex_reviewer_runs_tests_and_herdr_outside_its_sandbox_from_the_first_try(repo_with_worktree):
+    _, _, _, prompt = brief(repo_with_worktree)
+    assert mkbrief.CODEX_SANDBOX in prompt
+    assert "outside the sandbox" in mkbrief.CODEX_SANDBOX
+    for command in ("pytest", "herdr agent prompt", "mutate.py"):
+        assert command in mkbrief.CODEX_SANDBOX, command
+    assert "timeout 600" in mkbrief.CODEX_SANDBOX
+
+
+def test_a_claude_reviewer_gets_no_codex_sandbox_rule(repo_with_worktree):
+    _, _, _, prompt = brief(repo_with_worktree, reviewer="claude_review")
+    assert mkbrief.CODEX_SANDBOX not in prompt

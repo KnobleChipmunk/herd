@@ -72,9 +72,13 @@ prints the class's event count.
 
 ## 4. Proposals
 
+First, `python3 ~/projects/herd/tools/proposals.py sync`: it marks a
+proposal applied once the PR that carries it has merged.
+
 When `friction-append` prints `GRADUATES`, write
 `~/projects/herd/proposals/<date>-<slug>.md` with:
 
+0. The title line, a blank line, then `Status: open`.
 1. **Class** and the event lines, quoted from the ledger.
 2. **Proposed change.** Prefer a change to a tool in `~/projects/herd/tools`
    over a new paragraph in the skill: a problem that recurred after one
@@ -84,8 +88,13 @@ When `friction-append` prints `GRADUATES`, write
 4. **Prediction**: what the next run's ledger or friction lines should show if
    the change works, e.g. "no reviewer-wrong-cwd events".
 
-If an older proposal in that folder is marked applied and has a prediction,
-append one line to it: `<date>: held` or `<date>: missed — <evidence>`.
+Grade only what landed: `python3 ~/projects/herd/tools/proposals.py list
+--status applied` lists each applied proposal with its merge date. For each
+one merged before this run, append one line: `<date>: held` or `<date>:
+missed — <evidence>`. Never grade an `open`, `accepted` or `in-pr` proposal:
+nothing changed, so a quiet run is not evidence. A class that recurs while
+its proposal is still pending gets its new events in the ledger, not a
+grade.
 
 ## 5. Close
 

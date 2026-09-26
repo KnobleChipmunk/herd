@@ -13,6 +13,8 @@ import os
 import pathlib
 import subprocess
 
+import fencecheck
+import gates
 from herdtool import find_python, main_checkout
 
 FENCECHECK = pathlib.Path(__file__).resolve().parent / "fencecheck.py"
@@ -146,10 +148,23 @@ carry on (it feeds the post-run review; it is not a message to the lead):
 """
 
 
+# Codex's sandbox hangs Starlette's TestClient and denies the herdr socket; both
+# were retried out of it in every #459 review (sandboxed-testclient-hang,
+# sandbox-socket-denied). A Claude fallback reviewer has no such sandbox.
+CODEX_SANDBOX = (
+    "Sandbox: run every pytest command, every mutate.py drive, and every `herdr agent prompt` "
+    "outside the sandbox (request escalated permissions) on the FIRST attempt. In the sandbox the "
+    "test client hangs and the herdr socket is denied; neither is a finding, and diagnosing it costs "
+    "the round. Give each pytest run a 600-second timeout (`timeout 600` in front of the command), so a "
+    "hang ends as an answer."
+)
+
+
 def build_reviewer_prompt(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str, python: str,
                           lead_pane: str, reviewer: str, **_: object) -> str:
     w = worktree
     sha = base_sha(worktree, base)
+    sandbox = f"\n{CODEX_SANDBOX}\n" if reviewer.startswith("codex") else ""
     return f"""You are the REVIEWER for herd build #{id}, review round ROUND_N. Do NOT edit any file except your review file. Do NOT commit.
 
 Worktree (the build under review): {w}
@@ -157,11 +172,11 @@ Branch {branch}, base {base} at {sha} (the build is uncommitted). List what chan
 Spec: {w}/openspec/changes/{change}/ (proposal.md, design.md if present, specs/, tasks.md). The spec directory itself is part of the change, not a finding.
 Handoff: {w}/HANDOFF-{id}.md — it carries the full-suite tail verbatim; do NOT re-run the full suite unless that tail is missing or contradicts the gate in tasks.md section 0.
 Lead rulings in force: RULINGS_PLACEHOLDER
-
+{sandbox}
 Do this:
 1. Read the spec, then the handoff, then the diff.
 2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -m pytest <touched test files> -q --no-header`, plus the ruff, mypy and grep gates in tasks.md. Record the commands and their last lines.
-3. Check the build against tasks.md: the fences are byte-exact reference text, so run `python3 {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — every line it prints other than `FENCES OK` is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; BUILD-BRIEFING/HANDOFF/REVIEW/CODEX files are coordination files, not findings.
+3. Check the build against tasks.md: the fences are byte-exact reference text, so run `python3 {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — a line starting `{fencecheck.OK}` (it prints `{fencecheck.OK} (<n> steps)`) is success, and every other line it prints is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; root files matching {", ".join(f"`{p}`" for p in gates.COORDINATION)} are coordination files, and `openspec/changes/{change}/` is the change's own spec copy, allowed by the ALLOWED file: neither is a finding.
 4. Re-drive two mutations of your choice on a scratch copy, which never touches the build: `python3 {MUTATE} {w}/openspec/changes/{change}/tasks.md {w} --scratch --only <name>,<name>`. A result that differs from the handoff's mutation log is a finding.
 5. Report ONLY CONFIRMED defects — ones you reproduced or can show at file:line — each with an exact fix. Do not propose work the proposal's Non-goals exclude, new subsystems, persistence, or refactors.
 

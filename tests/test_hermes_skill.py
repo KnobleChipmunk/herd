@@ -30,3 +30,11 @@ def test_the_skill_forbids_the_actions_the_librarian_must_never_take():
     text = SKILL.read_text()
     for forbidden in ("git commit", "git push", "merge_stack.py --apply", "SKILL.md", "memory"):
         assert forbidden in text.split("## Never")[1], forbidden
+
+
+def test_every_proposals_subcommand_the_skills_name_exists():
+    import proposals
+    herd_skill = SKILL.parent.parent.parent / "skill" / "SKILL.md"
+    named = set(re.findall(r"proposals\.py ([a-z-]+)", SKILL.read_text() + herd_skill.read_text()))
+    assert {"list", "set", "sync"} <= named
+    assert named <= set(proposals.COMMANDS), named - set(proposals.COMMANDS)
