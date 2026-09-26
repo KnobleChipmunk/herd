@@ -139,8 +139,9 @@ asking the model.
 **Reuse rule.** Before creating a pane, `herdr agent list`. If a live agent
 of the right kind already sits in the slot (same tab, right position per
 `herdr pane layout`), rename it (`herdr agent rename <id> <name>`) and
-reuse it. Otherwise split and start. Panes are left open at the end — the
-user can watch and re-prompt them.
+reuse it. Otherwise split and start. Panes stay up across every issue and
+PR of one assignment, and are shut down once, after the retrospective (see
+"Shut down" under Roles).
 
 Creating the panes, once (the Codex invocation is the pre-08-23 one, with
 the roster's models):
@@ -333,6 +334,17 @@ them.
   the briefings, or the repo without the user's explicit signoff, and
   nothing is dripped mid-loop. RETRO-*.md files stay untracked like the
   review files.
+- **Shut down, after the retrospective.** Once every `RETRO-*.md` has
+  landed, and before the closing report, end each herd agent the run
+  started or reused: `herdr agent prompt <name> "/quit"` (pi, Codex) or
+  `"/exit"` (Claude). Confirm with `herdr agent list` that none of them is
+  still listed, and read each pane (`herdr pane read <pane> --source
+  visible`) for the shell prompt and the resume command the agent prints on
+  exit. Then `herdr pane close <pane>` for each. Close only the panes of
+  this run's slots in the lead's tab: never the lead's own pane, and never
+  an agent in another tab. The closing report lists each agent's resume
+  command, so the operator can still reopen a session after the panes are
+  gone.
 
 **pi_build (builder).** Works ONLY in its worktree. Tests first, red,
 then implementation, then gates (pytest + ruff + mypy + the spec's grep
@@ -381,7 +393,8 @@ lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
        clean?    → commit on branch → push → open PR, same turn
        → more PRs in the assignment? cut the next branch from this one → spec → the loop again
        → RETRO (after the last PR): ask all three agents "what would you improve in the skill?"
-       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + "the librarian starts itself after --apply"
+       → SHUT DOWN: /quit (or /exit) each herd agent, confirm it left `herdr agent list`, close its pane
+       → closing report: `runlog.py status` OPEN lines + PRs + the merge_stack.py command + "the librarian starts itself after --apply" + each agent's resume command
        (user runs merge_stack.py, then --apply: merge in order, pull, clean up)
        → openspec archive on a chore branch, pushed and PR'd unasked
 ```
