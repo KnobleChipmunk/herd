@@ -5,6 +5,11 @@ description: Run the Herdr three-agent build loop — the lead (this session) or
 
 # Herd — the lead orchestrates, pi builds, Codex reviews
 
+This skill governs `/herd` runs. `~/.claude/DEVLOOP.md` governs delegated
+builds outside `/herd`; where the two differ (who authorizes the spec, the
+review-round cap, who pushes), this skill wins inside a `/herd` run
+(operator ruling, #32).
+
 One session — **the lead, this one** — talks to the user, writes the spec,
 pre-executes it, rules on disputes, and does the final review. Everything
 else runs in Herdr panes beside it and reports inward. Proven shape:
@@ -18,9 +23,17 @@ Rules marked **(#321)** come from that retrospective.
 
 ## Roster
 
+Who plays each role is decided by two files, not by this table: the portable
+role catalog `skill/herd.yaml` (roles, cards, what each evaluates, what it may
+not do; no vendor names) and the machine's bindings file (#38; `herdsetup.py`,
+#39). The table below is this machine's example profile
+(`skill/profiles/example-claude-codex-pi.yaml`); `probe.py` still reads it
+until #51 moves it to the bindings (#40).
+
 This table is the one place models are named; the rest of the skill says
 "the lead", "the builder", "the plan reviewer", "the build reviewer". Change
-a model here and nowhere else.
+a model in the machine's bindings file; keep this table synchronized for
+`probe.py` until #51 moves it to the bindings.
 
 | Role | Harness | Model | Pane name | Falls back to |
 |---|---|---|---|---|
@@ -59,7 +72,17 @@ user leaves, and before the first dispatch:
    Topology), after `runlog.py add run-start`.
 3. **Preflight.** `python3 <herd>/tools/preflight.py --need <issue>:<VAR> …`
    with every credential any queued issue needs (an eval run, an API call).
-   It reports set or missing, never values.
+   It reports set or missing, never values. When the machine has a bindings
+   file (`~/.config/herd/bindings.yaml`; an example is in `skill/profiles/`),
+   preflight checks only the harnesses it binds, and the Probe step uses
+   `python3 <herd>/tools/bindings.py ready --role <role> --record` for each loop
+   role instead of `probe.py` (it honors the file's `probe_consent`); `probe.py`
+   and the Roster table remain only for machines without a bindings file,
+   until #51 (#38).
+   A new machine gets its file from `python3 <herd>/tools/herdsetup.py
+   assisted` (asks per role from what is installed; saves only on "y") or
+   `from-example`; `herdsetup.py validate` lists what is missing without
+   prompting (#39).
 4. **Decisions.** For every issue, list each call only the user can make
    that the issue could hit: behaviour the guild would notice, a cost,
    budget or model tier, a data source, a scope cut ("part 1 only?"). And
@@ -196,7 +219,8 @@ herdr agent start opus_<role> --kind claude --pane <slot3> -- \
 ```
 
 The slot holds one agent at a time. Same kind, next role: rename and
-re-prompt. Different kind: `herdr agent prompt <name> "/quit"` (pi/codex)
+re-prompt; an evaluator (plan reviewer, build reviewer, QA) first gets a
+fresh context (`/new`, or a restart), as its card requires. Different kind: `herdr agent prompt <name> "/quit"` (pi/codex)
 or `"/exit"` (claude), then `agent start` the replacement in the same
 pane. Several agents of one kind can be live at once — always target by NAME, never
 by kind.
@@ -240,6 +264,18 @@ them.
 **Never** use the `Agent` tool in this skill. Every subagent is the slot-3 pane.
 
 ## Roles and hand-offs
+
+Each role's contract is its card in `skill/cards/` (the lead's five roles share
+`cards/lead.md`). At dispatch, `python3 <herd>/tools/team.py assign <role>
+--issue <id> --session <name> --candidate <commit> --scope <files> --checks
+<gates>` records the assignment and must print `recorded`. Then, and after a
+compaction, `team.py packet <role> --issue <id>` gives a session its card,
+current step, return route, independence rule, and the binding and candidate
+recorded at dispatch (an explicit `--candidate <commit>` names a newer one).
+Before dispatch, `team.py gate dispatch --issue <id>` must print `ok`; before
+each review round, `team.py gate review --issue <id>`; and a review file must
+name its candidate (`team.py gate review-file <path>`). The gates check
+structure only (#40).
 
 **Lead (orchestrator + strategist + final reviewer).**
 - Picks the target with the user (or takes the one given). Ranks by:
@@ -475,12 +511,29 @@ or a failed restore); it refuses to start while pytest is running in the
 tree. A SURVIVED result means the test or the mutation is wrong — fix the
 spec, never skip the drive.
 
+## Tickets (`tools/tickets.py`)
+
+A question goes as a message (`herdr agent prompt`); work someone must own
+goes as a ticket. `tickets.py create --title <t> --to <owner> --by <you>
+[--parent <issue>]` opens one; its owner `claim`s it, then `close`s it with
+a reason (`no-follow-on`, `denied`, `canceled`, `superseded`, or
+`escalation --target <who>`), `block`s it `--on <who>`, or `handoff`s it `--to <next owner>`,
+which closes it and opens the successor in one write. Record each gate
+with `check <id> --name <n> --status pass|fail|not-checked|blocked|omitted
+[--candidate <commit>]` (a pass names the candidate it was measured on);
+`page <id>` writes the ticket's page to `<git common dir>/herd/tickets/`.
+An omitted, blocked or unchecked gate is never a PASS (#36, #37).
+
 ## Run log (`tools/runlog.py`)
 
 The run's durable record is `<git common dir>/herd/run-log.jsonl`: one JSON
 line per checkpoint, appended, shared by every worktree, never committed.
 It replaces the hand-edited state file. After a compaction or a crash, the
 lead recovers from `runlog.py status` and live git/gh, not from memory.
+A crashed run stays open: resume it by appending as usual, or end it with
+`runlog.py close --reason "<why>"`. A second `run-start` is refused while
+a run is open, and `status` keeps listing decisions an earlier run left
+open, marked with that run's id (#32).
 
 The lead records each checkpoint as it happens (`runlog.py add <kind>
 --issue <id> …`): `run-start` first, then per issue `spec-approved` (with
@@ -491,7 +544,9 @@ the loop creates, `dispatched`, `review-round` (with `--round` and
 reproduce), `lead-finding` (each finding the lead's final pass caught after
 the reviewer signed off), `done`, `blocked`, `pr-opened` (with `--pr` and
 `--branch`), `fallback` whenever a roster fallback runs, `decision-needed` /
-`decision-made`, and `run-end`. These are the herd ledger's columns: a
+`decision-made`, `session` (with `--agent`, `--role` and `--outcome`
+resumed | fresh | failed | unknown, whenever the lead starts, reuses or
+recovers an agent), and `run-end`. These are the herd ledger's columns: a
 checkpoint the lead skips is a count the ledger gets wrong.
 Agents add `friction` lines themselves; their briefing and prompt carry the
 command. `status` shows each issue's progress and what is still open;
@@ -520,6 +575,22 @@ that PR merged. The closing report ends with the merge_stack command and the
 `proposals.py list` output.
 
 ## Monitoring
+
+At `run-start`, recorded with the run's tab (`runlog.py add run-start --tab
+"$HERDR_TAB_ID" ...`), the lead starts the attention watcher as a background task:
+`python3 <herd>/tools/attention.py watch --repo <repo>` (add `--ntfy <url>` to
+also push to a phone; a second watcher for the same repo exits at once). It
+raises a Herdr notification once per open decision, permission dialog,
+batch of ready PRs, and stalled run, retries one Herdr drops, and never
+pages the operator for a worker block the lead has not yet ruled on. When
+an issue is deliberately waiting, say so with `runlog.py add wait --issue
+<id> --reason resource|peer|environment|auth|rate-limit|scheduled|other`, so
+it is not read as a stall. The operator's view of every agent and issue is
+`python3 <herd>/tools/attention.py monitor --repo <repo>`, run in any pane;
+both read the current run's tab from its `run-start` (#33, #34). Each Claude Code pane's
+context use shows in the monitor once `python3 <herd>/tools/context_collector.py
+install` has wrapped the status line (it backs up `settings.json` first, and
+`uninstall` restores it); other harnesses show `context unknown` (#41).
 
 The backgrounded prompt/wait notifications are the primary wake signal.
 Read each review file as it lands — you are watching for the reviewer

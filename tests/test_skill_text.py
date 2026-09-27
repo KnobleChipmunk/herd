@@ -32,3 +32,57 @@ def test_the_sweep_commits_what_the_librarian_and_sync_left_in_proposals():
     sweep = text[text.index("5. **Proposals.**"): text.index("6. **Ask once.**")]
     assert "chore/proposals-sweep-<date>" in sweep
     assert "git status" in sweep and "proposals/" in sweep
+
+
+def test_the_skill_states_it_governs_herd_runs_over_devloop():
+    """Operator ruling on #32: scope the two loops; the skill wins inside a /herd run."""
+    text = SKILL.read_text()
+    intro = paragraph(text, "One session — **the lead, this one**")
+    scope = " ".join(text[text.index("# Herd"): text.index("One session — **the lead, this one**")].split())
+    assert "DEVLOOP.md" in scope
+    assert "wins" in scope and "/herd" in scope
+    assert "DEVLOOP" not in intro
+
+
+def test_the_lead_starts_the_attention_watcher_and_names_the_monitor():
+    text = " ".join(SKILL.read_text().split())
+    monitoring = text[text.index("## Monitoring"): text.index("## Rulings")]
+    assert "attention.py watch --repo <repo>" in monitoring
+    assert "attention.py monitor --repo <repo>" in monitoring
+    assert "run-start" in monitoring
+
+
+def test_the_skill_separates_messages_from_owned_work():
+    text = " ".join(SKILL.read_text().split())
+    tickets = text[text.index("## Tickets"): text.index("## Run log")]
+    assert "A question goes as a message" in tickets and "goes as a ticket" in tickets
+    assert "tickets.py create" in tickets and "handoff" in tickets and "never a PASS" in tickets
+
+
+def test_the_sweep_names_the_bindings_file_and_the_readiness_check():
+    text = " ".join(SKILL.read_text().split())
+    sweep = text[text.index("3. **Preflight.**"): text.index("4. **Decisions.**")]
+    assert "~/.config/herd/bindings.yaml" in sweep and "bindings.py ready --role" in sweep
+
+
+def test_the_sweep_names_herd_setup():
+    text = " ".join(SKILL.read_text().split())
+    sweep = text[text.index("3. **Preflight.**"): text.index("4. **Decisions.**")]
+    assert "herdsetup.py assisted" in sweep and "herdsetup.py validate" in sweep and "from-example" in sweep
+
+
+def test_the_monitor_names_the_context_collector():
+    text = " ".join(SKILL.read_text().split())
+    monitoring = text[text.index("## Monitoring"): text.index("## Rulings")]
+    assert "context_collector.py install" in monitoring and "uninstall" in monitoring
+
+
+def test_the_skill_points_at_the_catalog_the_cards_and_the_gates():
+    text = " ".join(SKILL.read_text().split())
+    roster = text[text.index("## Roster"): text.index("## Before an unattended run")]
+    roles = text[text.index("## Roles and hand-offs"): text.index("## The loop, end to end")]
+    assert "skill/herd.yaml" in roster and "#51" in roster
+    assert "skill/cards/" in roles and "team.py packet" in roles and "team.py gate dispatch" in roles
+    assert "an evaluator (plan reviewer, build reviewer, QA) first gets a fresh context" in text
+    assert "team.py assign" in roles and roles.index("team.py assign") < roles.index("team.py packet")
+
