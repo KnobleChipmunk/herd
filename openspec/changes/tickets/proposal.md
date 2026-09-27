@@ -9,7 +9,8 @@ three contracts from OpenRig's `rig queue` (docs/openrig-evaluation.md).
 
 ## What changes
 
-- New `tools/tickets.py`, an append-only store at `<git common dir>/herd/tickets.jsonl`
+- New `tools/tickets.py`, a store that is append-only for committed records (an
+  interrupted last line is recovered) at `<git common dir>/herd/tickets.jsonl`
   (shared by every worktree and run): `create`, `claim`, `block`, `close`,
   `handoff`, `check`, `list`, `show`, `page`, `pages`.
 - Contracts from `rig queue` (openrig `docs/as-built/cli-reference.md:1272-1312`):
@@ -39,9 +40,11 @@ three contracts from OpenRig's `rig queue` (docs/openrig-evaluation.md).
   after `LOCK_TIMEOUT` (#32, `tools/runlog.py`); the tickets store sits beside
   the run log, so both share one lock.
 - `runlog.read`, `runlog.describe` and `runlog.log_path` exist at #32.
-- OpenRig closure reasons: `handed_off_to, blocked_on, denied, canceled,
-  no-follow-on, escalation`; routed ones require a target
-  (openrig `cli-reference.md:1307-1308`); `handoff` is transactional (`:1281`).
+- OpenRig closure reasons (implementation at f137f11, which the CLI docs lag):
+  `handed_off_to, blocked_on, denied, canceled, no-follow-on, escalation,
+  superseded` (`packages/daemon/src/domain/hot-potato-enforcer.ts:18-28`); a
+  target is required for the first two and `escalation` (`:86-95`); `handoff`
+  is transactional (`cli-reference.md:1281`).
 
 ## Non-goals
 

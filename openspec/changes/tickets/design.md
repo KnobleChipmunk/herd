@@ -16,8 +16,9 @@ agent cannot claim PASS by writing prose.
 
 **Durable records.** A line counts only with its newline. An interrupted last
 line is ignored when read and dropped before the next write by writing the
-complete lines to a temporary file, syncing it, renaming it over the store and
-syncing the directory; appends loop over short writes and sync before success.
+complete lines to a temporary file (looping over short writes), syncing it,
+renaming it over the store and syncing the directory; appends loop over short
+writes and sync before success; a newly created store also syncs its directory.
 
 ## Rejected
 

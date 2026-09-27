@@ -456,33 +456,43 @@ def load(repo: pathlib.Path) -> dict[str, dict]:
     return fold(read(path(repo)))
 
 
+def _write_fully(fd: int, data: bytes) -> None:
+    while data:
+        data = data[os.write(fd, data):]
+    os.fsync(fd)
+
+
+def _sync_dir(d: pathlib.Path) -> None:
+    fd = os.open(d, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def _write_all(p: pathlib.Path, events: list[dict]) -> None:
     """Append records durably; the caller holds the lock. An incomplete last line (a crashed write) is
-    dropped first by an atomic rewrite, so it can never join the next record."""
-    if p.exists():
+    dropped first: the complete lines go to a synced temporary file that is renamed over the store,
+    and the directory is synced. A newly created store also syncs its directory."""
+    existed = p.exists()
+    if existed:
         data = p.read_bytes()
         if data and not data.endswith(b"\n"):
             tmp = p.with_suffix(".tmp")
             fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
             try:
-                os.write(fd, data[:data.rfind(b"\n") + 1])
-                os.fsync(fd)  # the replacement is on disk before it replaces the history
+                _write_fully(fd, data[:data.rfind(b"\n") + 1])
             finally:
                 os.close(fd)
             os.replace(tmp, p)
-            dfd = os.open(p.parent, os.O_RDONLY)
-            try:
-                os.fsync(dfd)  # and the rename itself survives a crash
-            finally:
-                os.close(dfd)
-    payload = "".join(json.dumps(e) + "\n" for e in events).encode()
+            _sync_dir(p.parent)
     fd = os.open(p, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
     try:
-        while payload:
-            payload = payload[os.write(fd, payload):]
-        os.fsync(fd)
+        _write_fully(fd, "".join(json.dumps(e) + "\n" for e in events).encode())
     finally:
         os.close(fd)
+    if not existed:
+        _sync_dir(p.parent)
 
 
 def stamp() -> str:
