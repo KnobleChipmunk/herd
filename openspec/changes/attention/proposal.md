@@ -26,8 +26,25 @@ ticket either.
   line (a replaced log cannot suppress a new alert at a reused offset), or the
   pane and its Herdr `state_change_seq` for a blocked episode. Sent keys live in
   `<git common dir>/herd/attention-state.json`.
+- Plan review round 1 (11 findings, all folded; three narrowed by lead
+  ruling, recorded in the run log):
+  - `tools/runlog.py`: a `wait` kind (`--issue`, `--reason
+    resource|peer|environment|auth|rate-limit|scheduled|other`), ended by the
+    issue's next progress event, so a deliberate wait is not a stall; and one
+    open decision per issue, enforced at record time (`decision-needed` needs
+    `--issue`; a second open one is refused).
+  - Stall eligibility follows the issue's latest *work* event, so answering a
+    decision makes unfinished work eligible again.
+  - A failed `herdr agent list`, or an unknown run tab, claims nothing about
+    who is working. The watcher records the run tab; `scan` and `monitor` use it.
+  - One watcher per repository (a lock held for its lifetime). An item counts
+    as sent only when Herdr reports it shown; a dropped one is retried; ntfy is
+    best effort and never stops the watcher; state is written atomically.
+  - The monitor adds pane, association, binding (`unknown` until #38), the
+    observation time, the worktree as evidence, and a LEAD section.
 - `skill/SKILL.md` Monitoring: the lead starts `attention.py watch` at
-  run-start; the operator runs `attention.py monitor` in any pane.
+  run-start; `runlog.py add wait` for deliberate waits; the operator runs
+  `attention.py monitor` in any pane.
 
 ## Grounded facts
 
@@ -35,7 +52,10 @@ ticket either.
   (idle/working/blocked/done/unknown), `name`, `pane_id`, `tab_id`,
   `state_change_seq`, among others (read live, 2026-09-27).
 - `herdr notification show <title> [--body TEXT] [--sound none|done|request]`
-  (`herdr notification` help, 2026-09-27).
+  (`herdr notification` help, 2026-09-27). It prints JSON and exits 0 even when
+  it drops the notification: observed live 2026-09-27,
+  `{"result":{"reason":"rate_limited","shown":false,...}}`. Success is
+  `result.shown == true`.
 - Herdr's own states: `blocked` = an approval or question UI; `done` = idle and
   unseen (herdr skill, "Understand layout, panes, and agents").
 - `tools/runlog.py` at #32: `latest`, `PROGRESS`, `describe`, `log_path`; the
@@ -56,5 +76,5 @@ ticket either.
 ## Impact
 
 New `tools/attention.py`, `tests/test_attention.py`; edits to
-`skill/SKILL.md`, `tests/test_skill_text.py`, `pyproject.toml` (isort
-first-party list). Depends on #32 (branch stacked on `feat/32-run-recovery`).
+`tools/runlog.py`, `tests/test_runlog.py`, `skill/SKILL.md`,
+`tests/test_skill_text.py`, `pyproject.toml` (isort first-party list). Depends on #32 (branch stacked on `feat/32-run-recovery`).

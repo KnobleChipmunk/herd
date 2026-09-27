@@ -22,6 +22,14 @@ The rules SHALL report a stalled run only when work is in flight, no agent in th
 - **WHEN** the in-flight issue has an open decision
 - **THEN** no stall item is raised and the decision item remains
 
+#### Scenario: An answered hold
+- **WHEN** the decision is answered and the work is still unfinished and quiet past the window
+- **THEN** the stall becomes eligible again
+
+#### Scenario: A deliberate wait or an unknown observation
+- **WHEN** the issue has an open `wait` with a reason, or `herdr agent list` failed, or the run tab is unknown
+- **THEN** no stall item is raised
+
 ### Requirement: Lead items stay with the lead
 A worker `blocked` event older than the overdue window SHALL become a lead item and SHALL never be sent to the operator.
 
@@ -36,6 +44,14 @@ The watcher SHALL send each operator or informational item once across restarts,
 - **WHEN** the watcher runs twice on the same log and a new decision is then appended
 - **THEN** the first decision was sent once and the new one is sent once
 
+#### Scenario: A dropped notification
+- **WHEN** Herdr reports the notification not shown (for example rate-limited)
+- **THEN** the item is not recorded as sent and is retried on the next poll
+
+#### Scenario: A second watcher
+- **WHEN** a watcher already runs for the repository
+- **THEN** a second one exits without sending
+
 #### Scenario: A replaced log
 - **WHEN** the log is replaced and a different event lands at a previously sent offset
 - **THEN** the new event is sent
@@ -46,3 +62,10 @@ The monitor SHALL list every agent in the workspace with its activity and role (
 #### Scenario: A mixed workspace
 - **WHEN** agents run in the run's tab and another tab
 - **THEN** every agent is listed and the other tab's are marked `(outside run)`
+
+### Requirement: One open decision per issue
+The run log SHALL refuse a `decision-needed` without an issue, or for an issue that already has an unanswered decision in any run.
+
+#### Scenario: A second question
+- **WHEN** #426 has an open decision and another `decision-needed` for #426 is added
+- **THEN** it is refused and names the open question

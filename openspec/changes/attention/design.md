@@ -21,6 +21,14 @@ them as overdue after 15 min); the operator hears only what needs a human.
 **The watcher runs as the lead's background task**, not in a fifth pane: the
 seat layout stays as the team design fixes it.
 
+**Delivery means shown.** Herdr's `notification show` exits 0 even when it drops
+a notification as rate-limited, so the watcher reads `result.shown`. Only a
+shown item is recorded; a dropped one is retried on the next poll.
+
+**Unknown beats a confident wrong answer.** A failed agent observation or an
+unknown run tab disables the stall claim; decisions and PRs, which come from
+the log alone, still alert.
+
 ## Rejected
 
 - A pane per watcher: adds a seat for a script (team design §2: the watcher is
