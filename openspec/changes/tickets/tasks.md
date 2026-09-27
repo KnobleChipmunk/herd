@@ -463,8 +463,18 @@ def _write_all(p: pathlib.Path, events: list[dict]) -> None:
         data = p.read_bytes()
         if data and not data.endswith(b"\n"):
             tmp = p.with_suffix(".tmp")
-            tmp.write_bytes(data[:data.rfind(b"\n") + 1])
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+            try:
+                os.write(fd, data[:data.rfind(b"\n") + 1])
+                os.fsync(fd)  # the replacement is on disk before it replaces the history
+            finally:
+                os.close(fd)
             os.replace(tmp, p)
+            dfd = os.open(p.parent, os.O_RDONLY)
+            try:
+                os.fsync(dfd)  # and the rename itself survives a crash
+            finally:
+                os.close(dfd)
     payload = "".join(json.dumps(e) + "\n" for e in events).encode()
     fd = os.open(p, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
     try:
@@ -557,7 +567,7 @@ def verdict(checks: dict) -> str:
         return "NO CHECKS"
     if not all(c["status"] == "pass" for c in checks.values()):
         return "NOT PASS"
-    candidates = sorted({c["candidate"] for c in checks.values()})
+    candidates = sorted({c["candidate"] for c in checks.values() if c["candidate"]})
     if len(candidates) > 1:
         return f"NOT PASS (checks on different candidates: {', '.join(candidates)})"
     return f"PASS on {candidates[0]}"

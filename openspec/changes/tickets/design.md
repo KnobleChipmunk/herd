@@ -8,11 +8,16 @@ free, and a crash can only lose the write in flight.
 `runlog.locked` serializes ticket writes and run-log writes with one lock and
 one timeout; no second lock to reason about.
 
-**Ids by count.** `T<n>` where n counts `create` events, allocated inside the
-lock. Short ids are easy for agents and humans to type.
+**Ids by count.** `T<n>` where n counts `create` and `handoff` records (a
+handoff creates the successor), allocated inside the lock. Short ids are easy for agents and humans to type.
 
 **The page is generated, never edited.** Status comes only from records; an
 agent cannot claim PASS by writing prose.
+
+**Durable records.** A line counts only with its newline. An interrupted last
+line is ignored when read and dropped before the next write by writing the
+complete lines to a temporary file, syncing it, renaming it over the store and
+syncing the directory; appends loop over short writes and sync before success.
 
 ## Rejected
 
