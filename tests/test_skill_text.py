@@ -63,3 +63,10 @@ def test_the_sweep_names_the_bindings_file_and_the_readiness_check():
     text = " ".join(SKILL.read_text().split())
     sweep = text[text.index("3. **Preflight.**"): text.index("4. **Decisions.**")]
     assert "~/.config/herd/bindings.yaml" in sweep and "bindings.py ready --role" in sweep
+
+
+def test_the_sweep_names_herd_setup():
+    text = " ".join(SKILL.read_text().split())
+    sweep = text[text.index("3. **Preflight.**"): text.index("4. **Decisions.**")]
+    assert "herdsetup.py assisted" in sweep and "herdsetup.py validate" in sweep and "from-example" in sweep
+

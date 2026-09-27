@@ -71,6 +71,10 @@ user leaves, and before the first dispatch:
    role instead of `probe.py` (it honors the file's `probe_consent`); `probe.py`
    and the Roster table remain only for machines without a bindings file,
    until #51 (#38).
+   A new machine gets its file from `python3 <herd>/tools/herdsetup.py
+   assisted` (asks per role from what is installed; saves only on "y") or
+   `from-example`; `herdsetup.py validate` lists what is missing without
+   prompting (#39).
 4. **Decisions.** For every issue, list each call only the user can make
    that the issue could hit: behaviour the guild would notice, a cost,
    budget or model tier, a data source, a scope cut ("part 1 only?"). And
