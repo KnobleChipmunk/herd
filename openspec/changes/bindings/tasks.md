@@ -398,6 +398,21 @@ def test_a_remote_pi_provider_is_not_assumed_logged_in():
                            run=runner({}), consent=False)
     assert r["auth"] == "unknown"
 
+
+def test_an_override_works_without_a_bindings_file_and_without_consent(repo_with_worktree, tmp_path, monkeypatch,
+                                                                         capsys):
+    """Build review #38 (rounds 1-2): the override must not depend on a user file existing."""
+    main, _ = repo_with_worktree
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))  # no user bindings file here
+    seen = []
+    monkeypatch.setattr(bindings, "readiness", lambda b, **kw: seen.append(kw.get("consent")) or
+                        {"installed": True, "auth": "ok", "usable": "not-probed", "detail": "no probe consent"})
+    assert bindings.main(["ready", "--role", "build_reviewer", "--harness", "claude", "--model", "fable",
+                          "--repo", str(main)]) == 1
+    out = capsys.readouterr().out
+    assert "passed over claude fable: not-probed" in out and "NONE usable" in out
+    assert seen == [False]
+
 ```
 
 - [ ] **T2** `tests/test_skill_text.py` — the sweep names the bindings file
@@ -721,8 +736,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         doc = load(path)
     except (BindingsError, OSError) as exc:
-        print(f"invalid: {path}: {exc}")
-        return 2
+        if a.cmd == "ready" and a.harness and a.model and not a.file and not path.exists():
+            doc = {"version": VERSION, "roles": {}}  # an override alone, with no saved consent
+        else:
+            print(f"invalid: {path}: {exc}")
+            return 2
     roles = doc.get("roles", {})
     if a.cmd == "check":
         print(f"valid: {path}")
@@ -911,7 +929,7 @@ Replace it with exactly:
 
 ## 3. Gates
 
-- Full suite at the base (`feat/36-tickets` after its build): `335 passed`. After: `400 passed` (64 in `tests/test_bindings.py` with parametrized cases, 1 new skill-text test). ~8 s.
+- Full suite at the base (`feat/36-tickets` after its build): `335 passed`. After: `401 passed` (65 in `tests/test_bindings.py` with parametrized cases, 1 new skill-text test). ~8 s.
 - `ruff check tools tests` → `All checks passed!`; `openspec validate bindings` valid.
 - Live (lead-owned; run in pre-execution 2026-09-27): `bindings.py check --file skill/profiles/example-claude-codex-pi.yaml` → valid; `bindings.py ready --role build_reviewer` and `--role builder` on that file → both usable.
 
@@ -1187,6 +1205,20 @@ with
 ```
 
 Killer: `tests/test_bindings.py::test_a_remote_pi_provider_is_not_assumed_logged_in`
+
+- [ ] **M21** in `tools/bindings.py`: replace
+
+```python
+        if a.cmd == "ready" and a.harness and a.model and not a.file and not path.exists():
+```
+
+with
+
+```python
+        if False:
+```
+
+Killer: `tests/test_bindings.py::test_an_override_works_without_a_bindings_file_and_without_consent`
 
 - [ ] **M17** in `tools/bindings.py`: replace
 
