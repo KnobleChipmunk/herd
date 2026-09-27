@@ -2,7 +2,8 @@
 
 usage: runlog.py add <kind> [--issue N] [--pr N] [--branch B] [--worktree W]
                  [--agent A] [--model M] [--round N] [--verdict V] [--text T]
-                 [--role R] [--outcome resumed|fresh|failed|unknown] [--repo PATH]
+                 [--role R] [--outcome resumed|fresh|failed|unknown]
+                 [--reason resource|peer|environment|auth|rate-limit|scheduled|other] [--tab TAB] [--repo PATH]
        runlog.py close --reason WHY [--repo PATH]
        runlog.py status | created | friction | path [--repo PATH]
 
@@ -33,18 +34,21 @@ from herdtool import git_common_dir
 
 KINDS = ("run-start", "run-end", "spec-approved", "worktree-created", "branch-created", "scratch-created",
          "plan-review", "dispatched", "review-round", "ruling", "gate-miss", "lead-finding", "done", "blocked",
-         "pr-opened", "fallback", "friction", "decision-needed", "decision-made", "note", "session")
+         "pr-opened", "fallback", "friction", "decision-needed", "decision-made", "note", "session", "wait")
 REQUIRED = {"worktree-created": ("worktree",), "scratch-created": ("worktree",), "branch-created": ("branch",),
-            "pr-opened": ("pr", "branch"), "friction": ("agent", "text"), "decision-needed": ("text",),
+            "pr-opened": ("pr", "branch"), "friction": ("agent", "text"), "decision-needed": ("issue", "text"),
             "blocked": ("text",), "fallback": ("agent", "model"), "spec-approved": ("tier",),
             "plan-review": ("round", "verdict"), "review-round": ("round", "verdict"), "ruling": ("text",),
-            "gate-miss": ("text",), "lead-finding": ("text",), "session": ("agent", "role", "outcome")}
+            "gate-miss": ("text",), "lead-finding": ("text",), "session": ("agent", "role", "outcome"),
+            "wait": ("issue", "reason")}
 # Events that move an issue forward; friction, fallbacks and notes are side channels.
 PROGRESS = ("spec-approved", "plan-review", "worktree-created", "dispatched", "review-round", "done", "blocked",
-            "pr-opened", "decision-needed", "decision-made")
+            "pr-opened", "decision-needed", "decision-made", "wait")
 FIELDS = ("issue", "pr", "branch", "worktree", "agent", "model", "tier", "round", "verdict", "text", "role",
-          "outcome")
+          "outcome", "reason", "tab")
 OUTCOMES = ("resumed", "fresh", "failed", "unknown")
+# Why an issue is deliberately waiting; any later progress event for the issue ends the wait (#33).
+WAIT_REASONS = ("resource", "peer", "environment", "auth", "rate-limit", "scheduled", "other")
 LOCK_TIMEOUT = 30
 LOCK_POLL = 0.01
 _monotonic = time.monotonic
@@ -75,6 +79,15 @@ def latest(events: list[dict]) -> list[dict]:
 
 def latest_run(repo: pathlib.Path) -> list[dict]:
     return latest(read(repo))
+
+
+def open_decision(events: list[dict], issue: str) -> dict | None:
+    """The issue's decision-needed that no later decision-made answers, if any."""
+    for i, e in enumerate(events):
+        if e["kind"] == "decision-needed" and e.get("issue") == issue and not any(
+                x["kind"] == "decision-made" and x.get("issue") == issue for x in events[i + 1:]):
+            return e
+    return None
 
 
 def open_run(events: list[dict]) -> dict | None:
@@ -142,6 +155,9 @@ def append(repo: pathlib.Path, kind: str, fields: dict, path: pathlib.Path | Non
                 run_events = latest(events)
                 if not run_events:
                     return "no run-start in the log; start a run first"
+                if kind == "decision-needed" and open_decision(events, fields["issue"]):
+                    return (f"#{fields['issue']} already has an open decision: "
+                            f"{open_decision(events, fields['issue'])['text']}; record its decision-made first")
                 ts = stamp.isoformat(timespec="seconds")
                 run = run_events[0].get("run", ts)
             _write(path, {"ts": ts, "run": run, "kind": kind, **{k: v for k, v in fields.items() if v}})
@@ -207,7 +223,8 @@ def main(argv: list[str] | None = None) -> int:
     add = sub.add_parser("add")
     add.add_argument("kind", choices=KINDS)
     for f in FIELDS:
-        add.add_argument(f"--{f}", **({"choices": OUTCOMES} if f == "outcome" else {}))
+        add.add_argument(f"--{f}", **({"choices": OUTCOMES} if f == "outcome" else
+                                      {"choices": WAIT_REASONS} if f == "reason" else {}))
     sub.add_parser("close").add_argument("--reason", required=True)
     for name in ("status", "created", "friction", "path"):
         sub.add_parser(name)

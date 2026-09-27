@@ -485,3 +485,43 @@ def test_status_does_not_render_session_events(repo_with_worktree, capsys):
     runlog.main(["status", "--repo", str(main)])
     out = capsys.readouterr().out
     assert "#421 dispatched" in out and "session" not in out
+
+
+# --- #33: one open decision per issue, and deliberate waits -----------------
+
+def test_a_decision_needs_an_issue(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    assert add(main, "decision-needed", "--text", "which source?") == 2
+    assert "decision-needed needs --issue" in capsys.readouterr().out
+
+
+def test_a_second_open_decision_for_one_issue_is_refused_even_across_runs(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    add(main, "decision-needed", "--issue", "426", "--text", "which source?")
+    assert add(main, "decision-needed", "--issue", "426", "--text", "which budget?") == 2
+    assert "#426 already has an open decision: which source?" in capsys.readouterr().out
+    add(main, "run-end")
+    add(main, "run-start")
+    assert add(main, "decision-needed", "--issue", "426", "--text", "which budget?") == 2
+    assert add(main, "decision-needed", "--issue", "427", "--text", "other issue") == 0
+
+
+def test_an_answered_decision_can_be_followed_by_a_new_one(repo_with_worktree):
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    add(main, "decision-needed", "--issue", "426", "--text", "which source?")
+    add(main, "decision-made", "--issue", "426", "--text", "Raidbots")
+    assert add(main, "decision-needed", "--issue", "426", "--text", "which budget?") == 0
+
+
+def test_a_wait_records_its_reason_from_a_closed_set(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    assert add(main, "wait", "--issue", "35", "--reason", "rate-limit", "--text", "codex usage limit") == 0
+    assert events(main)[-1]["reason"] == "rate-limit"
+    with pytest.raises(SystemExit):
+        add(main, "wait", "--issue", "35", "--reason", "lunch")
+    assert "invalid choice: 'lunch'" in capsys.readouterr().err
+    assert add(main, "wait", "--issue", "35") == 2

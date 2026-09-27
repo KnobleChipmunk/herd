@@ -533,6 +533,19 @@ that PR merged. The closing report ends with the merge_stack command and the
 
 ## Monitoring
 
+At `run-start`, recorded with the run's tab (`runlog.py add run-start --tab
+"$HERDR_TAB_ID" ...`), the lead starts the attention watcher as a background task:
+`python3 <herd>/tools/attention.py watch --repo <repo>` (add `--ntfy <url>` to
+also push to a phone; a second watcher for the same repo exits at once). It
+raises a Herdr notification once per open decision, permission dialog,
+batch of ready PRs, and stalled run, retries one Herdr drops, and never
+pages the operator for a worker block the lead has not yet ruled on. When
+an issue is deliberately waiting, say so with `runlog.py add wait --issue
+<id> --reason resource|peer|environment|auth|rate-limit|scheduled|other`, so
+it is not read as a stall. The operator's view of every agent and issue is
+`python3 <herd>/tools/attention.py monitor --repo <repo>`, run in any pane;
+both read the current run's tab from its `run-start` (#33, #34).
+
 The backgrounded prompt/wait notifications are the primary wake signal.
 Read each review file as it lands — you are watching for the reviewer
 drifting out of scope (a round that asks for a new subsystem, persistence,
