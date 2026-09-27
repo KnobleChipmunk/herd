@@ -21,8 +21,8 @@ def test_briefing_names_the_derived_main_checkout(repo_with_worktree):
 
 def test_briefing_sends_rounds_to_the_named_reviewer_and_sentinels_to_the_lead_pane(repo_with_worktree):
     _, _, briefing, _ = brief(repo_with_worktree, reviewer="claude_review", lead_pane="w3:p7Q")
-    assert 'herdr agent prompt claude_review "$(cat CODEX-PROMPT-42-round-N.md)"' in briefing
-    assert "herdr agent wait claude_review --timeout 540000" in briefing
+    assert "tools/dispatch.py claude_review --file CODEX-PROMPT-42-round-N.md" in briefing
+    assert "herdr agent wait" not in briefing  # the dispatch tool waits (proposal herdr-wait-not-idle)
     assert 'herdr agent prompt w3:p7Q "DONE: build for 42' in briefing
     assert 'herdr agent prompt w3:p7Q "BLOCKED: 42' in briefing
 

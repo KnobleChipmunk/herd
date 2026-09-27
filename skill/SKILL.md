@@ -229,13 +229,12 @@ Prompts to any pane agent: write multi-line or quote-heavy prompts to a
 file and `herdr agent prompt <name> "$(cat file)" …`. Replies: have the
 agent write a file and read that — pane reads cut long output off.
 
-**Long agent turns run backgrounded (#321).** `herdr agent prompt …
---wait` under the Bash tool's 10-minute cap produces timeout errors that
-read like failures. Standing convention: run the prompt with `--wait
---timeout 540000` as a BACKGROUND task, treat an exit-1
-`timed out waiting for agent status` as "still working", follow with
-`herdr agent wait <name>` (also backgrounded) as needed, and let the
-completion notifications drive the loop. Never poll in a foreground loop.
+**Long agent turns run backgrounded (#321).** Dispatch with `python3
+<herd>/tools/dispatch.py <agent> --file <prompt>` as a BACKGROUND task: it
+sends the prompt and waits until the agent settles, treating Herdr's `timed
+out waiting for agent status` as "still working", so one call replaces the
+prompt-then-wait pair. Let the completion notifications drive the loop; never
+poll in a foreground loop.
 
 **Plan-reviewer brief (#330, #321).** Tell it the tier and that the plan
 was ALREADY pre-executed — name the scratch worktree (read-only for it)
