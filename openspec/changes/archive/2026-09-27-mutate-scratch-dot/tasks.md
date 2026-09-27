@@ -2,7 +2,7 @@
 
 ## 1. Tests first
 
-- [ ] **T1** `tests/test_mutate.py` — Insert the parameterized CLI regression. Preserve two blank lines between top-level functions; the fence ends with those two blank lines.
+- [x] **T1** `tests/test_mutate.py` — Insert the parameterized CLI regression. Preserve two blank lines between top-level functions; the fence ends with those two blank lines.
 
 Find this exact text (it occurs exactly once):
 
@@ -39,7 +39,7 @@ Run `python3 -m pytest -q tests/test_mutate.py -k main_scratch` before implement
 
 ## 2. Implementation
 
-- [ ] **I1** `tools/mutate.py` — Resolve the scratch source before taking its name. No blank lines are inserted within this block.
+- [x] **I1** `tools/mutate.py` — Resolve the scratch source before taking its name. No blank lines are inserted within this block.
 
 Find this exact text (it occurs exactly once):
 
@@ -56,7 +56,7 @@ Replace it with exactly:
 
 ## 3. Mutation drives
 
-- [ ] **M1** in `tools/mutate.py`: replace
+- [x] **M1** in `tools/mutate.py`: replace
 
 ```python
     w = w.resolve()
@@ -71,7 +71,7 @@ with
 
 Killer: `tests/test_mutate.py::test_main_scratch_accepts_current_directory_and_preserves_source`
 
-- [ ] **M2** in `tools/mutate.py`: replace
+- [x] **M2** in `tools/mutate.py`: replace
 
 ```python
     if not scratch:
