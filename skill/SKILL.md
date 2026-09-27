@@ -64,7 +64,13 @@ user leaves, and before the first dispatch:
    Topology), after `runlog.py add run-start`.
 3. **Preflight.** `python3 <herd>/tools/preflight.py --need <issue>:<VAR> …`
    with every credential any queued issue needs (an eval run, an API call).
-   It reports set or missing, never values.
+   It reports set or missing, never values. When the machine has a bindings
+   file (`~/.config/herd/bindings.yaml`; an example is in `skill/profiles/`),
+   preflight checks only the harnesses it binds, and the Probe step uses
+   `python3 <herd>/tools/bindings.py ready --role <role> --record` for each loop
+   role instead of `probe.py` (it honors the file's `probe_consent`); `probe.py`
+   and the Roster table remain only for machines without a bindings file,
+   until #51 (#38).
 4. **Decisions.** For every issue, list each call only the user can make
    that the issue could hit: behaviour the guild would notice, a cost,
    budget or model tier, a data source, a scope cut ("part 1 only?"). And

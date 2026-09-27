@@ -1,0 +1,2 @@
+# herd's only third-party runtime dependency: reading bindings.yaml and herd.yaml (#38).
+pyyaml>=6
