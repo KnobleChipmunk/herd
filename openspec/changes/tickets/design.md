@@ -1,8 +1,15 @@
 # Design — tickets
 
-**Event-sourced, append-only.** A ticket's state is folded from its events, the
-same shape as the run log: nothing is rewritten, so history and the page come
-free, and a crash can only lose the write in flight.
+**Event-sourced, append-only for committed records.** A ticket's state is
+folded from its events, the same shape as the run log, so history and the page
+come free. Committed lines are never changed; the only rewrite drops an
+interrupted last line (see Durable records), and a crash can lose only the
+write in flight.
+
+**Lead ruling (plan review round 4).** Durability of `<git common dir>/herd`
+itself is out of scope: the run log creates that directory at `run-start`
+and owns its guarantees; the ticket store syncs its own file and directory
+entries only.
 
 **One lock for both stores.** The store lives beside the run log, so
 `runlog.locked` serializes ticket writes and run-log writes with one lock and
