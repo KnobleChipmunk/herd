@@ -224,8 +224,19 @@ def watch_once(repo: pathlib.Path, agents: list[dict] | None, now: datetime.date
     return delivered
 
 
+def context_label(sample: dict | None, now: datetime.datetime) -> str:
+    """`context 64% (3m ago)` from a #41 collector sample, else `context unknown`."""
+    pct = (sample or {}).get("used_percentage")
+    import context_collector
+    if not context_collector.finite_number(pct):
+        return "context unknown"
+    age = int((now - datetime.datetime.fromisoformat(sample["ts"])).total_seconds() // 60)
+    return f"context {round(sample['used_percentage'])}% ({age}m ago)"
+
+
 def monitor(events: list[dict], agents: list[dict] | None, now: datetime.datetime, *, tab: str | None,
-            stall_after: float = STALL_MINUTES, overdue_after: float = OVERDUE_MINUTES) -> list[str]:
+            stall_after: float = STALL_MINUTES, overdue_after: float = OVERDUE_MINUTES,
+            context: dict | None = None) -> list[str]:
     """The text monitor: every agent, every issue of the latest run, what the lead owes, what needs the operator.
     Data no producer supplies yet (binding provenance until #38) is shown as unknown, never guessed."""
     run = runlog.latest(events)
@@ -239,7 +250,8 @@ def monitor(events: list[dict], agents: list[dict] | None, now: datetime.datetim
         where = "  (run tab unknown)" if not tab else "" if a.get("tab_id") == tab else "  (outside run)"
         role = roles.get(a.get("name"))
         lines.append(f"  {who:<22} {a['pane_id']:<8} {a.get('agent', '?'):<7} {a.get('agent_status', 'unknown'):<8} "
-                     f"role: {role or 'unknown'}{'' if role else ' (unassociated)'} · binding: unknown{where}")
+                     f"role: {role or 'unknown'}{'' if role else ' (unassociated)'} · binding: unknown · "
+                     f"{context_label((context or {}).get(a['pane_id']) if a.get('agent') == 'claude' else None, now)}{where}")
     lines.append("ISSUES")
     for issue, e in latest_progress(run).items():
         wait = f" [waiting: {e.get('reason')}]" if e["kind"] == "wait" else ""
@@ -303,8 +315,9 @@ def main(argv: list[str] | None = None) -> int:
                   "\n".join(f"{i['audience']:<8} {i['kind']:<10} {i['title']}: {i['body']}" for i in items))
             return 0
         print("" if a.once else "\033[2J\033[H", end="")
+        import context_collector
         print("\n".join(monitor(events, herdr_agents(), now, tab=tab, stall_after=a.stall,
-                                overdue_after=a.overdue)))
+                                overdue_after=a.overdue, context=context_collector.samples())))
         if a.once:
             return 0
         time.sleep(a.interval)

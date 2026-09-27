@@ -70,3 +70,9 @@ def test_the_sweep_names_herd_setup():
     sweep = text[text.index("3. **Preflight.**"): text.index("4. **Decisions.**")]
     assert "herdsetup.py assisted" in sweep and "herdsetup.py validate" in sweep and "from-example" in sweep
 
+
+def test_the_monitor_names_the_context_collector():
+    text = " ".join(SKILL.read_text().split())
+    monitoring = text[text.index("## Monitoring"): text.index("## Rulings")]
+    assert "context_collector.py install" in monitoring and "uninstall" in monitoring
+
