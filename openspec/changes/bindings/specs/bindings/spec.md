@@ -29,7 +29,7 @@ Choosing a binding SHALL try only the role's binding and its listed fallbacks, i
 - **THEN** no binding is chosen and every reason is listed
 
 ### Requirement: Preflight follows the bindings
-With a bindings file, preflight SHALL require only the base tools and the harnesses the file binds, fallbacks included.
+With a bindings file, preflight SHALL require only the base tools and the primary harness of each selected role (default: the four loop roles); fallbacks and inactive roles SHALL NOT be prerequisites.
 
 #### Scenario: A Claude-only machine
 - **WHEN** the file binds only Claude Code

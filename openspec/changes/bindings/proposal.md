@@ -63,7 +63,8 @@ hard-coded command shapes (its pi probe omits the provider the launch uses).
   one has no `--provider`, while the skill launches pi with `--provider ollama`.
 - `codex login status` prints `Logged in using ChatGPT` and exits 0; `claude
   auth status` prints JSON and exits 0 (both run live, 2026-09-27).
-- Live probes on 2026-09-27 through `bindings.py ready`: `codex exec -m
+- Live probes on 2026-09-27 through `bindings.py ready`, run before round 1 while
+  the example profile still had `probe_consent: true` (it now ships `false`): `codex exec -m
   gpt-6-sol -c model_reasoning_effort=high` → ok; `pi --provider ollama --model
   swift15-qwen3.8-128k:latest -p` → ok.
 - PyYAML 6.0.1 is installed on this machine and not declared by herd; it is
@@ -80,7 +81,7 @@ hard-coded command shapes (its pi probe omits the provider the launch uses).
 
 ## Impact
 
-New `tools/bindings.py`, `tests/test_bindings.py`,
+New `tools/bindings.py`, `tests/test_bindings.py`, `requirements.txt`,
 `skill/profiles/example-claude-codex-pi.yaml`; edits to `tools/preflight.py`,
 `skill/SKILL.md`, `tests/test_skill_text.py`, `pyproject.toml`. Stacked on
 `feat/36-tickets`.
