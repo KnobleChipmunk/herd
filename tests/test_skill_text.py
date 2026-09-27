@@ -58,3 +58,8 @@ def test_the_skill_separates_messages_from_owned_work():
     assert "A question goes as a message" in tickets and "goes as a ticket" in tickets
     assert "tickets.py create" in tickets and "handoff" in tickets and "never a PASS" in tickets
 
+
+def test_the_sweep_names_the_bindings_file_and_the_readiness_check():
+    text = " ".join(SKILL.read_text().split())
+    sweep = text[text.index("3. **Preflight.**"): text.index("4. **Decisions.**")]
+    assert "~/.config/herd/bindings.yaml" in sweep and "bindings.py ready --role" in sweep
