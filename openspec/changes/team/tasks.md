@@ -1,7 +1,7 @@
 # Tasks — team: catalog, cards, packet, gates (#40)
 
 Tier: **full**. DEPENDS ON #41: the branch is stacked on `feat/41-context`.
-Fences are generated from the lead's pre-executed tree; `tools/fencecheck.py` must print `FENCES OK (15 steps)`.
+Fences are generated from the lead's pre-executed tree; `tools/fencecheck.py` must print `FENCES OK (16 steps)`.
 
 ## 1. Tests first — apply T1, T2, then observe RED
 
@@ -56,6 +56,10 @@ def test_every_own_session_card_carries_the_eight_fields_and_the_lead_card_its_f
     (lambda d: d["roles"]["architect"].update(runs_in="own-session"), "architect: a lead-held role"),
     (lambda d: d["roles"].pop("librarian"), "missing role librarian"),
     (lambda d: d["roles"]["qa"].update(runs_in="lead-held"), "qa: an own-session role"),
+    (lambda d: d["roles"]["builder"].update(binding=None), "builder: missing binding"),
+    (lambda d: d["roles"]["builder"].update(card=None), "builder: missing card"),
+    (lambda d: d["roles"]["builder"].update(card="../pyproject.toml"), "builder: card ../pyproject.toml is not a role card"),
+    (lambda d: d["roles"]["builder"].update(card="../README.md"), "builder: card ../README.md is not a role card"),
 ])
 def test_an_invalid_catalog_is_rejected_with_a_reason(change, error):
     doc = team.load()
@@ -186,6 +190,21 @@ def test_release_prep_keeps_the_operator_authorization_for_protected_pushes():
         "force-push without explicit operator authorization"]
 
 
+def test_a_project_may_add_a_role_beyond_the_twelve():
+    doc = team.load()
+    doc["roles"]["security_reviewer"] = dict(doc["roles"]["designer"])
+    assert team.validate(doc) == []
+
+
+def test_an_assignment_without_a_bindings_file_keeps_the_reason(repo_with_worktree, tmp_path):
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    assert team.main(["assign", "qa", "--issue", "40", "--session", "qa_1", "--bindings", str(tmp_path / "none.yaml"),
+                      "--repo", str(main)]) == 0
+    p = team.packet("qa", issue="40", repo=main, candidate=None, bindings_file=tmp_path / "none.yaml")
+    assert p["binding"] == p["assignment"]["binding"] == "unknown (no bindings file)"
+
+
 def test_an_unknown_role_cannot_be_assigned(repo_with_worktree, capsys):
     main, _ = repo_with_worktree
     add(main, "run-start")
@@ -231,7 +250,7 @@ def test_the_skill_points_at_the_catalog_the_cards_and_the_gates():
 
 RED after T1–T2: `tests/test_team.py` fails to collect (no module `team`); the new skill-text test fails.
 
-## 2. Implementation — apply I1–I13
+## 2. Implementation — apply I1–I14
 
 - [ ] **I1** `pyproject.toml` — register the new module for isort
 
@@ -893,6 +912,7 @@ import runlog
 
 SKILL = pathlib.Path(__file__).resolve().parent.parent / "skill"
 CATALOG = SKILL / "herd.yaml"
+CARD_ROOTS = (SKILL / "cards", SKILL.parent / "hermes")
 KEYS = ("runs_in", "binding", "card", "activation", "purpose", "outputs", "may_not", "capabilities", "skip_when",
         "allowed_operations", "time_limit_minutes", "cost_limit", "exclusions", "advisory")
 LEAD_HELD = ("orchestrator", "architect", "planner", "product_intake", "release_prep")
@@ -910,7 +930,7 @@ def validate(doc: dict) -> list[str]:
     roles = doc.get("roles") or {}
     errors += [f"missing role {name}" for name in LEAD_HELD + OWN_SESSION if name not in roles]
     for name, r in roles.items():
-        errors += [f"{name}: missing {k}" for k in KEYS if k not in r]
+        errors += [f"{name}: missing {k}" for k in KEYS if r.get(k) is None]
         if r.get("runs_in") not in ("own-session", "lead-held"):
             errors.append(f"{name}: runs_in must be own-session or lead-held")
         if name in LEAD_HELD and r.get("runs_in") != "lead-held":
@@ -919,8 +939,12 @@ def validate(doc: dict) -> list[str]:
             errors.append(f"{name}: an own-session role (docs/team-design.md §2)")
         if r.get("binding") and r["binding"] not in bindings.ROLES:
             errors.append(f"{name}: unknown binding '{r['binding']}'")
-        if r.get("card") and not (SKILL / r["card"]).resolve().exists():
-            errors.append(f"{name}: card {r['card']} not found")
+        if r.get("card"):
+            card = (SKILL / r["card"]).resolve()
+            if card.suffix != ".md" or not any(card.is_relative_to(root.resolve()) for root in CARD_ROOTS):
+                errors.append(f"{name}: card {r['card']} is not a role card (a .md under skill/cards/ or hermes/)")
+            elif not card.exists():
+                errors.append(f"{name}: card {r['card']} not found")
         for e in r.get("evaluates") or []:
             if e == name:
                 errors.append(f"{name}: a role cannot evaluate itself")
@@ -972,7 +996,7 @@ def assign(role: str, *, issue: str, repo: pathlib.Path, session: str, candidate
     if role not in roles:
         return f"unknown role {role!r}"
     b = resolved_binding(roles[role]["binding"], bindings_file)
-    record = {"role": role, "binding": b if isinstance(b, dict) else None, "session": session,
+    record = {"role": role, "binding": b, "session": session,
               "candidate": candidate, "scope": scope, "checks": checks}
     return runlog.append(repo, "note", {"issue": issue, "text": "assignment " + json.dumps(record, sort_keys=True)})
 
@@ -1131,9 +1155,26 @@ re-prompt; an evaluator (plan reviewer, build reviewer, QA) first gets a
 fresh context (`/new`, or a restart), as its card requires. Different kind:
 ```
 
+- [ ] **I14** `skill/SKILL.md` — the Roster's own sentence defers to the bindings file (build review F5)
+
+Find this exact text (it occurs exactly once):
+
+```python
+Change
+a model here and nowhere else.
+```
+
+Replace it with exactly:
+
+```python
+Change
+a model in the machine's bindings file; keep this table synchronized for
+`probe.py` until #51 moves it to the bindings.
+```
+
 ## 3. Gates
 
-- Full suite at the base (`feat/41-context` after its build): `461 passed`. After: `489 passed` (27 in `tests/test_team.py` with parametrized cases, 1 new skill-text test). ~9 s.
+- Full suite at the base (`feat/41-context` after its build): `461 passed`. After: `495 passed` (33 in `tests/test_team.py` with parametrized cases, 1 new skill-text test). ~9 s.
 - `ruff check tools tests` → `All checks passed!`; `openspec validate team` valid; `python3 tools/team.py check` → valid.
 
 ## 4. Mutations
@@ -1349,6 +1390,48 @@ with
 ```
 
 Killer: `tests/test_team.py::test_recovery_reads_the_recorded_assignment_not_the_current_bindings_file`
+
+- [ ] **M17** in `tools/team.py`: replace
+
+```python
+        errors += [f"{name}: missing {k}" for k in KEYS if r.get(k) is None]
+```
+
+with
+
+```python
+        errors += [f"{name}: missing {k}" for k in KEYS if k not in r]
+```
+
+Killer: `tests/test_team.py::test_an_invalid_catalog_is_rejected_with_a_reason`
+
+- [ ] **M18** in `tools/team.py`: replace
+
+```python
+            if card.suffix != ".md" or not any(card.is_relative_to(root.resolve()) for root in CARD_ROOTS):
+```
+
+with
+
+```python
+            if card.suffix != ".md":
+```
+
+Killer: `tests/test_team.py::test_an_invalid_catalog_is_rejected_with_a_reason`
+
+- [ ] **M19** in `tools/team.py`: replace
+
+```python
+    record = {"role": role, "binding": b, "session": session,
+```
+
+with
+
+```python
+    record = {"role": role, "binding": b if isinstance(b, dict) else None, "session": session,
+```
+
+Killer: `tests/test_team.py::test_an_assignment_without_a_bindings_file_keeps_the_reason`
 
 - [ ] **M12** in `tools/team.py`: replace
 

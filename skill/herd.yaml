@@ -1,0 +1,299 @@
+# The portable role catalog (#40; docs/team-design.md §2). No vendor names: which harness and model
+# plays a role is a machine-local binding (~/.config/herd/bindings.yaml, #38). Every constraint here is
+# advisory until a tool enforces it; `enforced_by` names the tool when one does.
+version: 1
+roles:
+  orchestrator:
+    runs_in: lead-held
+    binding: lead
+    card: cards/lead.md
+    activation: always
+    purpose: route work, rule on disputes, give the operator one consolidated report
+    outputs:
+    - rulings
+    - run log checkpoints
+    - closing report
+    may_not:
+    - hand off operator gates
+    capabilities:
+    - repo read/write
+    - git and gh
+    - Herdr control
+    skip_when: never
+    allowed_operations:
+    - route
+    - rule
+    - report
+    - commit/push/PR on loop branches
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions: []
+    advisory: true
+  architect:
+    runs_in: lead-held
+    binding: lead
+    card: cards/lead.md
+    activation: intake; cross-ticket findings
+    purpose: decide interfaces, invariants and non-goals across tickets
+    outputs:
+    - design.md decisions
+    may_not:
+    - change scope or product behavior without the operator
+    capabilities:
+    - repo read
+    skip_when: a ticket with no cross-ticket decision
+    allowed_operations:
+    - write design.md decisions
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions: []
+    advisory: true
+  planner:
+    runs_in: lead-held
+    binding: lead
+    card: cards/lead.md
+    activation: every ticket
+    purpose: write the openspec change and pre-execute it
+    outputs:
+    - openspec change
+    - pre-execution evidence
+    - byte-exact fences
+    may_not:
+    - skip pre-execution on the full tier
+    capabilities:
+    - repo read/write
+    - tests
+    - scratch worktree
+    skip_when: never
+    allowed_operations:
+    - write the openspec change
+    - pre-execute in a scratch worktree
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions: []
+    advisory: true
+  product_intake:
+    runs_in: lead-held
+    binding: lead
+    card: cards/lead.md
+    activation: operator input; dogfood findings
+    purpose: turn requests and findings into ranked tickets
+    outputs:
+    - tickets
+    may_not:
+    - self-approve new scope
+    capabilities:
+    - gh issues
+    skip_when: no new input or findings
+    allowed_operations:
+    - create and rank tickets
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions: []
+    advisory: true
+  release_prep:
+    runs_in: lead-held
+    binding: lead
+    card: cards/lead.md
+    activation: after the final review
+    purpose: commit, push and open the PR on branches this loop created
+    outputs:
+    - commit
+    - PR
+    may_not:
+    - merge
+    - publish
+    - push to main or a branch the loop did not create, without explicit operator authorization
+    - force-push without explicit operator authorization
+    capabilities:
+    - git and gh
+    skip_when: no reviewed candidate
+    allowed_operations:
+    - commit
+    - normal push
+    - open a PR on loop branches
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions: []
+    advisory: true
+  builder:
+    runs_in: own-session
+    binding: builder
+    card: cards/builder.md
+    activation: dispatch
+    purpose: implement the spec in one worktree
+    outputs:
+    - implementation
+    - handoff
+    returns_to: build_reviewer
+    may_not:
+    - commit
+    - push
+    - leave the worktree
+    - edit a test after the tests-first step
+    capabilities:
+    - file edits
+    - shell
+    - tests
+    skip_when: never
+    allowed_operations:
+    - edit the briefing's allowed files
+    - run gates and mutations
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions: []
+    advisory: true
+  plan_reviewer:
+    runs_in: own-session
+    binding: plan_reviewer
+    card: cards/plan-reviewer.md
+    activation: every spec
+    purpose: challenge the spec before the build
+    outputs:
+    - PLAN-REVIEW file
+    returns_to: planner
+    evaluates:
+    - planner
+    may_not:
+    - execute the plan or its tests
+    capabilities:
+    - repo read
+    - git blobs
+    skip_when: never
+    allowed_operations:
+    - read
+    - reason
+    - write its review file
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions:
+    - must not have authored the work it judges
+    - fresh context
+    advisory: true
+  build_reviewer:
+    runs_in: own-session
+    binding: build_reviewer
+    card: cards/build-reviewer.md
+    activation: each build round
+    purpose: review the build against the spec
+    outputs:
+    - REVIEW file
+    returns_to: builder
+    evaluates:
+    - builder
+    - planner
+    may_not:
+    - edit the candidate
+    capabilities:
+    - repo read
+    - shell
+    - tests
+    skip_when: never
+    allowed_operations:
+    - run fencecheck, touched tests, scratch mutation drives
+    - write its review file
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions:
+    - must not have authored the work it judges
+    - fresh context
+    advisory: true
+  qa:
+    runs_in: own-session
+    binding: qa
+    card: cards/qa.md
+    activation: chosen at planning by journey and risk; skip reason recorded
+    purpose: exercise the promised outcome on a frozen candidate
+    outputs:
+    - QA report
+    - ticket checks
+    returns_to: orchestrator
+    evaluates:
+    - builder
+    - planner
+    may_not:
+    - repair the candidate it certifies
+    capabilities:
+    - shell
+    - the product's public surface
+    - isolated environment
+    skip_when: not selected at planning (the reason is recorded)
+    allowed_operations:
+    - exercise the candidate
+    - create isolated fixtures
+    - record ticket checks
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions:
+    - must not have authored the work it judges
+    - fresh context
+    advisory: true
+  dogfood:
+    runs_in: own-session
+    binding: dogfood
+    card: cards/dogfood.md
+    activation: only when the operator authorizes a session
+    purpose: use the shipped product for real
+    outputs:
+    - finding tickets
+    returns_to: product_intake
+    may_not:
+    - act as a build gate
+    - start itself
+    - install on the operator's live system
+    capabilities:
+    - the installed product
+    - approved test accounts
+    skip_when: no operator authorization
+    allowed_operations:
+    - use the product
+    - file finding tickets
+    time_limit_minutes: 20
+    cost_limit: unset
+    exclusions: []
+    advisory: true
+  designer:
+    runs_in: own-session
+    binding: designer
+    card: cards/designer.md
+    activation: UI or interaction ambiguity before the plan freezes
+    purpose: settle flows, states and acceptance examples
+    outputs:
+    - flows and acceptance examples
+    returns_to: planner
+    may_not:
+    - count as the independent evaluator of a candidate it shaped
+    capabilities:
+    - repo read
+    skip_when: no UI or interaction ambiguity
+    allowed_operations:
+    - write flows, states and acceptance examples
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions:
+    - cannot count as the independent evaluator of what it shaped
+    advisory: true
+  librarian:
+    runs_in: own-session
+    binding: librarian
+    card: ../hermes/herd-librarian/SKILL.md
+    activation: merge_stack.py --apply
+    purpose: file the run's friction and propose rule changes
+    outputs:
+    - ledger rows
+    - proposals
+    may_not:
+    - commit
+    - change the skill
+    capabilities:
+    - a local or hosted model
+    - the run log
+    - the vault ledgers
+    skip_when: the run is not merged
+    allowed_operations:
+    - append ledger rows
+    - write proposals
+    time_limit_minutes: unset
+    cost_limit: unset
+    exclusions: []
+    advisory: true

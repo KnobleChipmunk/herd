@@ -23,9 +23,17 @@ Rules marked **(#321)** come from that retrospective.
 
 ## Roster
 
+Who plays each role is decided by two files, not by this table: the portable
+role catalog `skill/herd.yaml` (roles, cards, what each evaluates, what it may
+not do; no vendor names) and the machine's bindings file (#38; `herdsetup.py`,
+#39). The table below is this machine's example profile
+(`skill/profiles/example-claude-codex-pi.yaml`); `probe.py` still reads it
+until #51 moves it to the bindings (#40).
+
 This table is the one place models are named; the rest of the skill says
 "the lead", "the builder", "the plan reviewer", "the build reviewer". Change
-a model here and nowhere else.
+a model in the machine's bindings file; keep this table synchronized for
+`probe.py` until #51 moves it to the bindings.
 
 | Role | Harness | Model | Pane name | Falls back to |
 |---|---|---|---|---|
@@ -211,7 +219,8 @@ herdr agent start opus_<role> --kind claude --pane <slot3> -- \
 ```
 
 The slot holds one agent at a time. Same kind, next role: rename and
-re-prompt. Different kind: `herdr agent prompt <name> "/quit"` (pi/codex)
+re-prompt; an evaluator (plan reviewer, build reviewer, QA) first gets a
+fresh context (`/new`, or a restart), as its card requires. Different kind: `herdr agent prompt <name> "/quit"` (pi/codex)
 or `"/exit"` (claude), then `agent start` the replacement in the same
 pane. Several agents of one kind can be live at once — always target by NAME, never
 by kind.
@@ -256,6 +265,18 @@ them.
 **Never** use the `Agent` tool in this skill. Every subagent is the slot-3 pane.
 
 ## Roles and hand-offs
+
+Each role's contract is its card in `skill/cards/` (the lead's five roles share
+`cards/lead.md`). At dispatch, `python3 <herd>/tools/team.py assign <role>
+--issue <id> --session <name> --candidate <commit> --scope <files> --checks
+<gates>` records the assignment and must print `recorded`. Then, and after a
+compaction, `team.py packet <role> --issue <id>` gives a session its card,
+current step, return route, independence rule, and the binding and candidate
+recorded at dispatch (an explicit `--candidate <commit>` names a newer one).
+Before dispatch, `team.py gate dispatch --issue <id>` must print `ok`; before
+each review round, `team.py gate review --issue <id>`; and a review file must
+name its candidate (`team.py gate review-file <path>`). The gates check
+structure only (#40).
 
 **Lead (orchestrator + strategist + final reviewer).**
 - Picks the target with the user (or takes the one given). Ranks by:

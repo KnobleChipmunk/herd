@@ -22,6 +22,12 @@ touches every briefing and tool; it is a separate change (#51) so this one
 stays reviewable. The librarian's harness binding and its pending obligation
 move to #51 too (plan review round 1 F4).
 
+**The catalog check requires, and does not limit.** It requires the twelve
+roles, their fields (a null value counts as missing) and a card that is a `.md`
+under `skill/cards/` or `hermes/`; a project may add a thirteenth role (build
+review F3, rejected). An assignment keeps the reason when its binding was
+unknown (build review F4).
+
 ## Rejected
 
 - Generating SKILL.md from the cards now: a large rewrite of the live loop in

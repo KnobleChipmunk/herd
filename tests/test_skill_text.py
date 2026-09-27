@@ -76,3 +76,13 @@ def test_the_monitor_names_the_context_collector():
     monitoring = text[text.index("## Monitoring"): text.index("## Rulings")]
     assert "context_collector.py install" in monitoring and "uninstall" in monitoring
 
+
+def test_the_skill_points_at_the_catalog_the_cards_and_the_gates():
+    text = " ".join(SKILL.read_text().split())
+    roster = text[text.index("## Roster"): text.index("## Before an unattended run")]
+    roles = text[text.index("## Roles and hand-offs"): text.index("## The loop, end to end")]
+    assert "skill/herd.yaml" in roster and "#51" in roster
+    assert "skill/cards/" in roles and "team.py packet" in roles and "team.py gate dispatch" in roles
+    assert "an evaluator (plan reviewer, build reviewer, QA) first gets a fresh context" in text
+    assert "team.py assign" in roles and roles.index("team.py assign") < roles.index("team.py packet")
+

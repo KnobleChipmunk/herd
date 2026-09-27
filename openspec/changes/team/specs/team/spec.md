@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: A portable role catalog
-`skill/herd.yaml` SHALL list every role with where it runs, its binding, its card, its activation, purpose, outputs, prohibitions, capabilities, skip conditions, allowed operations, time limit, cost limit, exclusions and an advisory flag, with no vendor names, and `team.py check` SHALL reject a catalog that lacks one of the twelve roles, moves a role between lead-held and own-session, or whose role lacks these, runs a lead-held role in its own session, names an unknown binding or card, or lets a role evaluate itself.
+`skill/herd.yaml` SHALL list every role with where it runs, its binding, its card, its activation, purpose, outputs, prohibitions, capabilities, skip conditions, allowed operations, time limit, cost limit, exclusions and an advisory flag, with no vendor names, and `team.py check` SHALL reject a catalog that lacks one of the twelve roles, moves a role between lead-held and own-session, or whose role lacks these, runs a lead-held role in its own session, names an unknown binding or card, names a card that is not a `.md` under `skill/cards/` or `hermes/`, or lets a role evaluate itself; a null field counts as missing, and a project may add roles beyond the twelve.
 
 #### Scenario: A role evaluating itself
 - **WHEN** the build reviewer lists itself under `evaluates`
