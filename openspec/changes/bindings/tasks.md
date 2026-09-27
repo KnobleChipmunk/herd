@@ -324,13 +324,79 @@ def test_ready_takes_an_override_and_records_the_chosen_binding(repo_with_worktr
     assert bindings.main(["ready", "--role", "build_reviewer", "--file", str(f), "--repo", str(main),
                           "--harness", "claude", "--model", "fable", "--record"]) == 0
     assert "build_reviewer: claude fable" in capsys.readouterr().out
-    assert runlog.read(main)[-1]["text"] == "binding build_reviewer: claude fable (override)"
+    assert runlog.read(main)[-1]["text"] == 'binding build_reviewer (override): {"harness": "claude", "model": "fable"}'
 
 
 def test_an_explicit_missing_bindings_file_fails_preflight(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("HERDR_ENV", "1")
     assert preflight.main(["--bindings", str(tmp_path / "nope.yaml")]) == 1
     assert "no bindings file at" in capsys.readouterr().out
+
+
+# --- plan review #38 round 2 -------------------------------------------------
+
+def test_the_record_keeps_every_identity_field_of_the_chosen_binding(repo_with_worktree, tmp_path, monkeypatch):
+    import json as _json
+
+    import runlog
+    main, _ = repo_with_worktree
+    runlog.main(["add", "run-start", "--repo", str(main)])
+    f = tmp_path / "b.yaml"
+    f.write_text("version: 1\nprobe_consent: true\nroles:\n  builder: {harness: pi, provider: ollama, model: m}\n")
+    monkeypatch.setattr(bindings, "readiness", lambda b, **kw: {"installed": True, "auth": "not-required",
+                                                                 "usable": "ok", "detail": ""})
+    assert bindings.main(["ready", "--role", "builder", "--file", str(f), "--repo", str(main), "--record"]) == 0
+    text = runlog.read(main)[-1]["text"]
+    assert _json.loads(text.split(": ", 1)[1]) == {"harness": "pi", "provider": "ollama", "model": "m"}
+
+
+def test_a_refused_record_fails_the_command(repo_with_worktree, tmp_path, monkeypatch, capsys):
+    main, _ = repo_with_worktree  # no run-start: the run log refuses the note
+    f = tmp_path / "b.yaml"
+    f.write_text("version: 1\nroles:\n  builder: {harness: claude, model: m}\n")
+    monkeypatch.setattr(bindings, "readiness", lambda b, **kw: {"installed": True, "auth": "ok", "usable": "ok",
+                                                                 "detail": ""})
+    assert bindings.main(["ready", "--role", "builder", "--file", str(f), "--repo", str(main), "--record"]) == 1
+    assert "not recorded: no run-start" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("args, message", [
+    (["--harness", "claude"], "an override needs both --harness and --model"),
+    (["--model", "fable"], "an override needs both --harness and --model"),
+    (["--role", "barista"], "unknown role 'barista'"),
+])
+def test_a_malformed_invocation_is_refused_before_any_probe(tmp_path, monkeypatch, capsys, args, message):
+    f = tmp_path / "b.yaml"
+    f.write_text("version: 1\nroles:\n  builder: {harness: claude, model: m}\n")
+    monkeypatch.setattr(bindings, "readiness", lambda b, **kw: pytest.fail("probed"))
+    role = [] if "--role" in args else ["--role", "builder"]
+    assert bindings.main(["ready", "--file", str(f), *role, *args]) == 2
+    assert message in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("binding, key", [
+    ({"harness": "claude", "model": 5}, "model"),
+    ({"harness": ["claude"], "model": "m"}, "harness"),
+    ({"harness": "pi", "provider": "", "model": "m"}, "provider"),
+    ({"harness": "codex", "model": "m", "settings": "high"}, "settings"),
+    ({"harness": "codex", "model": "m", "settings": {"reasoning_effort": 3}}, "settings.reasoning_effort"),
+])
+def test_wrong_types_are_diagnosed_not_crashed_on(binding, key):
+    assert f"builder: {key} has the wrong type" in bindings.validate({"version": 1, "roles": {"builder": binding}})
+
+
+def test_a_boolean_or_malformed_version_and_malformed_yaml_are_diagnosed(tmp_path):
+    assert "unsupported version True" in bindings.validate({"version": True, "roles": {}})
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("version: 1\nroles: {builder: [unclosed\n")
+    with pytest.raises(bindings.BindingsError, match="not valid YAML"):
+        bindings.load(bad)
+
+
+def test_a_remote_pi_provider_is_not_assumed_logged_in():
+    r = bindings.readiness({"harness": "pi", "provider": "openrouter", "model": "m"}, which=ALL_THERE,
+                           run=runner({}), consent=False)
+    assert r["auth"] == "unknown"
 
 ```
 
@@ -416,6 +482,7 @@ LOOP_ROLES = ("lead", "builder", "plan_reviewer", "build_reviewer")
 SUPPORTED = {"claude": {"harness", "model"}, "codex": {"harness", "model", "settings"},
              "pi": {"harness", "model", "provider"}}
 SETTINGS = {"codex": {"reasoning_effort"}}
+LOCAL_PROVIDERS = {"pi": {"ollama"}}  # a provider served on this machine needs no login
 LOGIN_WORDS = ("not logged in", "log in", "login required", "unauthorized", "not authenticated")
 PROMPT = "Reply with exactly: OK"
 TIMEOUT = 180
@@ -439,6 +506,14 @@ def user_path() -> pathlib.Path:
 def _binding_errors(b, where: str, allow_fallback: bool) -> list[str]:
     if not isinstance(b, dict):
         return [f"{where}: a binding must be a mapping"]
+    bad = [k for k in ("harness", "model", "provider") if k in b and not (isinstance(b[k], str) and b[k].strip())]
+    if "settings" in b and not isinstance(b["settings"], dict):
+        bad.append("settings")
+    elif isinstance(b.get("settings"), dict) and "reasoning_effort" in b["settings"] and \
+            not isinstance(b["settings"]["reasoning_effort"], str):
+        bad.append("settings.reasoning_effort")
+    if bad:
+        return [f"{where}: {k} has the wrong type" for k in bad]
     allowed = BINDING_KEYS if allow_fallback else tuple(k for k in BINDING_KEYS if k != "fallback")
     errors = [f"{where}: unknown key '{k}'" for k in b if k not in allowed]
     errors += [f"{where}: missing {k}" for k in ("harness", "model") if not b.get(k)]
@@ -465,7 +540,7 @@ def validate(doc) -> list[str]:
     errors = [f"unknown key '{k}'" for k in doc if k not in TOP_KEYS]
     if "version" not in doc:
         errors.append("missing version")
-    elif doc["version"] != VERSION:
+    elif type(doc["version"]) is not int or doc["version"] != VERSION:
         errors.append(f"unsupported version {doc['version']}")
     if "probe_consent" in doc and not isinstance(doc["probe_consent"], bool):
         errors.append("probe_consent must be true or false")
@@ -485,7 +560,10 @@ def load(path: pathlib.Path) -> dict:
         import yaml
     except ImportError as exc:  # PyYAML is the one third-party module herd reads config with
         raise BindingsError("reading bindings needs PyYAML: pip install pyyaml") from exc
-    doc = yaml.safe_load(pathlib.Path(path).read_text())
+    try:
+        doc = yaml.safe_load(pathlib.Path(path).read_text())
+    except yaml.YAMLError as exc:
+        raise BindingsError(f"not valid YAML: {exc}") from exc
     errors = validate(doc)
     if errors:
         raise BindingsError("; ".join(errors))
@@ -552,7 +630,7 @@ def readiness(b: dict, *, which=shutil.which, run=_run, consent: bool) -> dict:
     adapter = ADAPTERS[b["harness"]]
     if which(adapter["binary"]) is None:
         return {"installed": False, "auth": "unknown", "usable": "not-probed", "detail": f"{adapter['binary']} not on PATH"}
-    auth = "not-required"
+    auth = "not-required" if b.get("provider") in LOCAL_PROVIDERS.get(b["harness"], set()) else "unknown"
     if adapter["status"]:
         try:
             s = run(adapter["status"], timeout=30)
@@ -658,7 +736,13 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "tools":
         print(" ".join(required_tools(doc)))
         return 0
-    flag = {"harness": a.harness, "model": a.model} if a.harness and a.model else None
+    if a.role not in ROLES:
+        print(f"unknown role {a.role!r}: one of {', '.join(ROLES)}")
+        return 2
+    if bool(a.harness) != bool(a.model):
+        print("an override needs both --harness and --model")
+        return 2
+    flag = {"harness": a.harness, "model": a.model} if a.harness else None
     if flag and _binding_errors(flag, "override", False):
         print("; ".join(_binding_errors(flag, "override", False)))
         return 2
@@ -675,8 +759,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{a.role}: {chosen['harness']} {chosen['model']}" if chosen else f"{a.role}: NONE usable")
     if chosen and a.record:
         import runlog
-        runlog.append(pathlib.Path(a.repo), "note", {"text": f"binding {a.role}: {chosen['harness']} {chosen['model']}"
-                                                     + (" (override)" if flag else "")})
+        why = runlog.append(pathlib.Path(a.repo), "note", {"text": f"binding {a.role}"
+                                                           + (" (override)" if flag else "") + ": "
+                                                           + json.dumps(chosen, sort_keys=True)})
+        if why:
+            print(f"not recorded: {why}")
+            return 1
     return 0 if chosen else 1
 
 
@@ -813,15 +901,17 @@ Replace it with exactly:
 ```python
    It reports set or missing, never values. When the machine has a bindings
    file (`~/.config/herd/bindings.yaml`; an example is in `skill/profiles/`),
-   preflight checks only the harnesses it binds, and `python3
-   <herd>/tools/bindings.py ready --role <role>` checks that role's chain in
-   order; `probe.py` keeps reading the Roster table until #40 (#38).
+   preflight checks only the harnesses it binds, and the Probe step uses
+   `python3 <herd>/tools/bindings.py ready --role <role> --record` for each loop
+   role instead of `probe.py` (it honors the file's `probe_consent`); `probe.py`
+   and the Roster table remain only for machines without a bindings file,
+   until #51 (#38).
 4. **Decisions.**
 ```
 
 ## 3. Gates
 
-- Full suite at the base (`feat/36-tickets` after its build): `335 passed`. After: `388 passed` (52 in `tests/test_bindings.py` with parametrized cases, 1 new skill-text test). ~8 s.
+- Full suite at the base (`feat/36-tickets` after its build): `335 passed`. After: `400 passed` (64 in `tests/test_bindings.py` with parametrized cases, 1 new skill-text test). ~8 s.
 - `ruff check tools tests` → `All checks passed!`; `openspec validate bindings` valid.
 - Live (lead-owned; run in pre-execution 2026-09-27): `bindings.py check --file skill/profiles/example-claude-codex-pi.yaml` → valid; `bindings.py ready --role build_reviewer` and `--role builder` on that file → both usable.
 
@@ -832,7 +922,7 @@ Drive with `python3 tools/mutate.py openspec/changes/bindings/tasks.md <tree>`; 
 - [ ] **M1** in `tools/bindings.py`: replace
 
 ```python
-    elif doc["version"] != VERSION:
+    elif type(doc["version"]) is not int or doc["version"] != VERSION:
 ```
 
 with
@@ -1054,6 +1144,49 @@ with
 ```
 
 Killer: `tests/test_bindings.py::test_a_result_taken_without_consent_does_not_block_a_consented_probe`
+
+- [ ] **M18** in `tools/bindings.py`: replace
+
+```python
+    if bool(a.harness) != bool(a.model):
+```
+
+with
+
+```python
+    if False:
+```
+
+Killer: `tests/test_bindings.py::test_a_malformed_invocation_is_refused_before_any_probe`
+
+- [ ] **M19** in `tools/bindings.py`: replace
+
+```python
+    if bad:
+        return [f"{where}: {k} has the wrong type" for k in bad]
+```
+
+with
+
+```python
+
+```
+
+Killer: `tests/test_bindings.py::test_wrong_types_are_diagnosed_not_crashed_on`
+
+- [ ] **M20** in `tools/bindings.py`: replace
+
+```python
+    auth = "not-required" if b.get("provider") in LOCAL_PROVIDERS.get(b["harness"], set()) else "unknown"
+```
+
+with
+
+```python
+    auth = "not-required"
+```
+
+Killer: `tests/test_bindings.py::test_a_remote_pi_provider_is_not_assumed_logged_in`
 
 - [ ] **M17** in `tools/bindings.py`: replace
 

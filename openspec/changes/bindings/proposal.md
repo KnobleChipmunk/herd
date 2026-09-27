@@ -45,6 +45,13 @@ hard-coded command shapes (its pi probe omits the provider the launch uses).
   in for a consented probe; `ready` takes `--harness/--model` as an invocation
   override and `--record` writes the chosen binding to the run log;
   `requirements.txt` declares PyYAML.
+- Plan review round 2 (5 findings): the sweep's Probe step uses `bindings.py
+  ready --record` whenever a bindings file exists (probe.py only without one,
+  until #51); `--record` writes the full chosen binding as JSON and fails when
+  the run log refuses it; pi's auth is `not-required` only for the local
+  `ollama` provider; an override needs both `--harness` and `--model`, and an
+  unknown role is refused before any probe; wrong field types, a Boolean
+  version and malformed YAML are diagnosed, never crashed on.
 - `skill/profiles/example-claude-codex-pi.yaml`: this machine's roster as an
   example profile.
 - `skill/SKILL.md` sweep: the bindings file and `bindings.py ready`.
