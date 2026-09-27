@@ -64,6 +64,7 @@ def drive(tasks_text: str, w: pathlib.Path, only: set[str] | None = None,
     py = find_python(w)
     if not scratch:
         return run_mutations(w, [resolve(w, m) for m in muts], py)
+    w = w.resolve()
     with tempfile.TemporaryDirectory(prefix="herd-mutate-") as tmp:
         copy = pathlib.Path(tmp) / w.name
         shutil.copytree(w, copy, ignore=shutil.ignore_patterns(".git", "__pycache__"))
