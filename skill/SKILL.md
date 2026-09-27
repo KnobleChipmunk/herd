@@ -631,7 +631,9 @@ a force-push are NOT covered and still stop and ask.
   pulls main, removing an untracked spec copy only when it is byte-identical
   to what merged; and removes the worktrees and branches the run log says
   the run created, for merged issues only, never forcing one with
-  uncommitted work; then it starts the librarian in the background.
+  uncommitted work (a scratch reference is forced only when every change it
+  holds is already on origin/main, and otherwise kept with the differing
+  files named); then it starts the librarian in the background.
   Re-running it is safe, so a crash half-way is fixed by running it again. One PR by hand is still `env -u GH_TOKEN gh pr merge N
   --merge` (the session token lacks merge scope); not `--delete-branch`,
   which fails on the local branch while its worktree exists.

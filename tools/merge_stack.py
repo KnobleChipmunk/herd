@@ -11,7 +11,8 @@ what it would do. It reads the latest run in the run log and:
 2. pulls main in the main checkout; an untracked file in the way is removed
    only when it is byte-identical to origin/main, otherwise it stops;
 3. for each issue whose PR merged, removes the worktrees and branches the log
-   says the run created, never forcing a worktree with uncommitted work;
+   says the run created, never forcing a worktree with uncommitted work,
+   except a scratch reference whose every change is already on origin/main;
 4. when all of that succeeded, starts the librarian (Hermes, herd-librarian)
    in the background, once per run, unless --no-librarian.
 
@@ -145,10 +146,22 @@ def cleanup(main: pathlib.Path, events: list[dict], merged: set[str], apply: boo
             lines.append(f"would remove worktree {path}")
         else:
             r = git(main, "worktree", "remove", str(path))
+            if r.returncode and scratch:
+                # A scratch reference holds uncommitted changes by design, so
+                # a plain remove always refuses it. Forced only when every
+                # change is already on origin/main; anything else is kept.
+                differing = unmerged_changes(main, path)
+                if differing:
+                    lines.append(f"KEPT worktree {path}: differs from origin/main: {', '.join(differing)}")
+                    continue
+                r = git(main, "worktree", "remove", "--force", str(path))
+                if r.returncode == 0:
+                    lines.append(f"removed worktree {path} (every change is on origin/main)")
+            elif r.returncode == 0:
+                lines.append(f"removed worktree {path}")
             if r.returncode:
                 lines.append(f"KEPT worktree {path}: {last_line(r)}")
                 continue
-            lines.append(f"removed worktree {path}")
         if not branch:
             continue
         kind = "scratch branch" if scratch else "branch"
@@ -160,6 +173,36 @@ def cleanup(main: pathlib.Path, events: list[dict], merged: set[str], apply: boo
             r = git(main, "branch", "-D" if scratch else "-d", branch)
             lines.append(f"deleted {kind} {branch}" if r.returncode == 0 else f"KEPT {kind} {branch}: {last_line(r)}")
     return lines
+
+
+def unmerged_changes(main: pathlib.Path, worktree: pathlib.Path) -> list[str]:
+    """The files a worktree changed that are not byte-identical on origin/main.
+
+    A file deleted in the worktree counts as unmerged when origin/main still
+    has it; a rename or copy always counts, rather than be reasoned about.
+    """
+    r = subprocess.run(["git", "-C", str(worktree), "status", "--porcelain", "-z", "-uall"],
+                       capture_output=True, text=True)
+    if r.returncode:
+        return [f"(git status failed: {last_line(r)})"]
+    differing = []
+    entries = iter(r.stdout.split("\0"))
+    for entry in entries:
+        if len(entry) < 4:
+            continue
+        code, rel = entry[:2], entry[3:]
+        if code[0] in "RC":
+            next(entries, None)  # the rename's source path
+            differing.append(rel)
+            continue
+        merged = subprocess.run(["git", "-C", str(main), "show", f"origin/main:{rel}"], capture_output=True)
+        local = worktree / rel
+        if not local.exists():
+            if merged.returncode == 0:
+                differing.append(rel)
+        elif merged.returncode or local.read_bytes() != merged.stdout:
+            differing.append(rel)
+    return sorted(differing)
 
 
 def librarian_command(main: pathlib.Path) -> list[str]:

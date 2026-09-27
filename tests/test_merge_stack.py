@@ -376,3 +376,39 @@ def test_a_dry_run_on_a_run_the_librarian_already_handled_says_so(created, monke
     monkeypatch.setattr(merge_stack, "gh_runner", lambda repo: FakeGH({"429": "MERGED"}))
     merge_stack.main(["--repo", str(main), "--log", str(log)])
     assert capsys.readouterr().out.splitlines()[-1] == "librarian already handled this run (see the run log); not starting it again"
+
+
+# A scratch worktree holds uncommitted changes by design (the lead's
+# pre-executed reference), so a plain `worktree remove` always refuses it.
+# It is forced only when every change it holds is already on origin/main.
+
+def test_a_scratch_worktree_whose_changes_all_merged_is_force_removed(created, origin_and_main):
+    main, trees, events = created
+    _, _, hub = origin_and_main
+    land_on_origin(hub, "src/feature.py", "the merged code\n")
+    git("fetch", "-q", "origin", cwd=main)
+    (trees / "pre-421" / "src").mkdir()
+    (trees / "pre-421" / "src" / "feature.py").write_text("the merged code\n")
+
+    lines = merge_stack.cleanup(main, events, merged={"421"}, apply=True)
+
+    assert not (trees / "pre-421").exists()
+    assert f"removed worktree {trees / 'pre-421'} (every change is on origin/main)" in lines
+    assert "deleted scratch branch scratch/pre-421" in lines
+
+
+def test_a_scratch_worktree_with_a_change_not_on_main_is_kept_and_named(created, origin_and_main):
+    main, trees, events = created
+    _, _, hub = origin_and_main
+    land_on_origin(hub, "src/feature.py", "the merged code\n")
+    git("fetch", "-q", "origin", cwd=main)
+    (trees / "pre-421" / "src").mkdir()
+    (trees / "pre-421" / "src" / "feature.py").write_text("an older draft\n")
+    (trees / "pre-421" / "notes.md").write_text("not on main at all\n")
+
+    lines = merge_stack.cleanup(main, events, merged={"421"}, apply=True)
+
+    assert (trees / "pre-421" / "src" / "feature.py").read_text() == "an older draft\n"
+    assert (f"KEPT worktree {trees / 'pre-421'}: differs from origin/main: notes.md, src/feature.py"
+            in lines)
+    assert "scratch/pre-421" in branches(main)
