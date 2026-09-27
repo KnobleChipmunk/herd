@@ -494,7 +494,8 @@ REPLACE THE WHOLE FILE. Delete everything in it and write exactly this body (byt
 
 usage: runlog.py add <kind> [--issue N] [--pr N] [--branch B] [--worktree W]
                  [--agent A] [--model M] [--round N] [--verdict V] [--text T]
-                 [--role R] [--outcome resumed|fresh|failed|unknown] [--repo PATH]
+                 [--role R] [--outcome resumed|fresh|failed|unknown]
+                 [--reason resource|peer|environment|auth|rate-limit|scheduled|other] [--tab TAB] [--repo PATH]
        runlog.py close --reason WHY [--repo PATH]
        runlog.py status | created | friction | path [--repo PATH]
 
@@ -999,7 +1000,7 @@ def monitor(events: list[dict], agents: list[dict] | None, now: datetime.datetim
         lines.append("  unavailable: herdr agent list failed")
     for a in agents or []:
         who = a.get("name") or a["pane_id"]
-        where = "" if tab and a.get("tab_id") == tab else "  (outside run)"
+        where = "  (run tab unknown)" if not tab else "" if a.get("tab_id") == tab else "  (outside run)"
         role = roles.get(a.get("name"))
         lines.append(f"  {who:<22} {a['pane_id']:<8} {a.get('agent', '?'):<7} {a.get('agent_status', 'unknown'):<8} "
                      f"role: {role or 'unknown'}{'' if role else ' (unassociated)'} · binding: unknown{where}")
