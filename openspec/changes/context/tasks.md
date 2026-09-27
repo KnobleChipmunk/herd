@@ -206,6 +206,15 @@ def test_a_symlinked_settings_file_stays_a_symlink(tmp_path):
     assert cc.uninstall(link, home=home) == 0 and link.is_symlink()
     assert json.loads(real.read_text())["statusLine"]["command"] == ORIGINAL
 
+
+
+def test_a_dangling_symlink_at_the_backup_name_is_taken_not_written_through(tmp_path):
+    s, home = settings(tmp_path), tmp_path / "share"
+    outside = tmp_path / "outside.json"
+    (tmp_path / "settings.json.bak-herd-2026-09-27").symlink_to(outside)
+    assert cc.install(s, home=home, today=TODAY) == 0
+    assert not outside.exists()
+    assert json.loads((tmp_path / "settings.json.bak-herd-2026-09-27-2").read_text())["statusLine"]["command"] == ORIGINAL
 ```
 
 - [ ] **T2** `tests/test_skill_text.py` — the monitor names the collector
@@ -354,7 +363,7 @@ def _write_atomic(path: pathlib.Path, text: str) -> None:
 
 def _backup(settings: pathlib.Path, today: datetime.date) -> pathlib.Path:
     n, target = 1, settings.with_name(f"{settings.name}.bak-herd-{today.isoformat()}")
-    while target.exists():
+    while target.exists() or target.is_symlink():
         n += 1
         target = settings.with_name(f"{settings.name}.bak-herd-{today.isoformat()}-{n}")
     shutil.copy2(settings, target)
@@ -778,7 +787,7 @@ install` has wrapped the status line (it backs up `settings.json` first, and
 
 ## 3. Gates
 
-- Full suite at the base (`feat/39-setup` after its build): `435 passed`. After: `460 passed` (24 in `tests/test_context_collector.py`, 1 new skill-text test). ~8 s.
+- Full suite at the base (`feat/39-setup` after its build): `435 passed`. After: `461 passed` (25 in `tests/test_context_collector.py`, 1 new skill-text test). ~8 s.
 - `ruff check tools tests` → `All checks passed!`; `openspec validate context` valid.
 - Live (lead-owned): the real `~/.claude/statusline-command.sh` output through the collector is byte-identical to running it directly, stdout and stderr (checked in pre-execution after round 1, 778 bytes); after the PR the lead runs `context_collector.py install` once (operator decision) and confirms the status line still renders and a sample appears for the lead's pane.
 
@@ -865,7 +874,7 @@ Killer: `tests/test_context_collector.py::test_install_twice_neither_rewraps_nor
 - [ ] **M6** in `tools/context_collector.py`: replace
 
 ```python
-    while target.exists():
+    while target.exists() or target.is_symlink():
 ```
 
 with
@@ -875,6 +884,20 @@ with
 ```
 
 Killer: `tests/test_context_collector.py::test_install_twice_neither_rewraps_nor_overwrites_a_backup`
+
+- [ ] **M17** in `tools/context_collector.py`: replace
+
+```python
+    while target.exists() or target.is_symlink():
+```
+
+with
+
+```python
+    while target.exists():
+```
+
+Killer: `tests/test_context_collector.py::test_a_dangling_symlink_at_the_backup_name_is_taken_not_written_through`
 
 - [ ] **M7** in `tools/context_collector.py`: replace
 

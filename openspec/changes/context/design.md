@@ -24,3 +24,7 @@ spawn per status line; after a cross-workspace pane move, context shows unknown.
 
 - Reading context from Claude transcripts: heavier and not needed while the
   status line supplies it.
+- Reserving the backup name against two installs run at the same time (build
+  review round 3): `install` is a one-time manual operator command, parallel
+  installs are not a supported mode, and each install also rewrites
+  `settings.json`, so reserving the name alone would not make them safe.

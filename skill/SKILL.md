@@ -567,7 +567,10 @@ an issue is deliberately waiting, say so with `runlog.py add wait --issue
 <id> --reason resource|peer|environment|auth|rate-limit|scheduled|other`, so
 it is not read as a stall. The operator's view of every agent and issue is
 `python3 <herd>/tools/attention.py monitor --repo <repo>`, run in any pane;
-both read the current run's tab from its `run-start` (#33, #34).
+both read the current run's tab from its `run-start` (#33, #34). Each Claude Code pane's
+context use shows in the monitor once `python3 <herd>/tools/context_collector.py
+install` has wrapped the status line (it backs up `settings.json` first, and
+`uninstall` restores it); other harnesses show `context unknown` (#41).
 
 The backgrounded prompt/wait notifications are the primary wake signal.
 Read each review file as it lands — you are watching for the reviewer
