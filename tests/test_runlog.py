@@ -276,33 +276,71 @@ def test_concurrent_run_starts_admit_exactly_one(repo_with_worktree):
     assert all(f"run {logged[0]['run']} is still open" in r and "runlog.py close --reason" in r for r in refusals)
 
 
-def test_an_append_that_read_the_log_before_a_close_cannot_land_in_the_next_run(repo_with_worktree, monkeypatch):
-    """Plan review #32 round 1, finding 1: every append holds the lock from reading the log to writing."""
-    import threading
+def lock_is_held(lock) -> bool:
+    """True when another open file description holds the run-log lock."""
+    import fcntl
+
+    with open(lock, "a") as probe:
+        try:
+            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(probe, fcntl.LOCK_UN)
+        return False
+
+
+def test_every_append_holds_the_lock_from_its_read_to_its_write(repo_with_worktree, monkeypatch):
+    """Plan review #32 rounds 1-2: an append that read run A must not write after a close and a new start.
+    Checked directly, without threads: the lock is held at the read and at the write, in one acquisition."""
+    import contextlib
 
     main, _ = repo_with_worktree
-    add(main, "run-start", "--text", "A")
-    run_a = events(main)[0]["run"]
-    real_read_file = runlog.read_file
-    race: dict = {}
+    add(main, "run-start")
+    lock = runlog.log_path(main).with_name("run-log.lock")
+    seen: list = []
+    real_locked, real_read, real_write = runlog.locked, runlog.read_file, runlog._write
 
-    def racing_read_file(path):
-        out = real_read_file(path)
-        if not race:
-            race["thread"] = threading.Thread(target=lambda: race.update(
-                close=runlog.close(main, "crash"), start=runlog.append(main, "run-start", {"text": "B"})))
-            race["thread"].start()
-            race["thread"].join(timeout=0.5)  # unlocked, the close and B's start would land here
-        return out
+    @contextlib.contextmanager
+    def traced_locked(path):
+        with real_locked(path):
+            seen.append("enter")
+            yield
+            seen.append("exit")
 
-    monkeypatch.setattr(runlog, "read_file", racing_read_file)
-    assert add(main, "run-end") == 0
-    race["thread"].join(timeout=10)
-    logged = events(main)
-    assert [e["kind"] for e in logged] == ["run-start", "run-end", "run-start"]
-    assert logged[1]["run"] == run_a
-    assert "no open run" in race["close"] and race["start"] is None
-    assert runlog.open_run(real_read_file(runlog.log_path(main)))["run"] == logged[2]["run"]
+    def traced_read(path):
+        seen.append(("read", lock_is_held(lock)))
+        return real_read(path)
+
+    def traced_write(path, event):
+        seen.append(("write", lock_is_held(lock)))
+        return real_write(path, event)
+
+    monkeypatch.setattr(runlog, "locked", traced_locked)
+    monkeypatch.setattr(runlog, "read_file", traced_read)
+    monkeypatch.setattr(runlog, "_write", traced_write)
+    one_acquisition = ["enter", ("read", True), ("write", True), "exit"]
+    for call in (lambda: add(main, "note", "--text", "x"), lambda: add(main, "run-end"),
+                 lambda: add(main, "run-start"), lambda: close(main, "--reason", "x")):
+        seen.clear()
+        assert call() == 0
+        assert seen == one_acquisition
+
+
+def test_an_append_gives_up_on_a_lock_held_too_long(repo_with_worktree, monkeypatch, capsys):
+    """A stuck holder fails the append with a message instead of hanging the lead or the test suite."""
+    import fcntl
+
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    monkeypatch.setattr(runlog, "LOCK_TIMEOUT", 0.2)
+    lock = runlog.log_path(main).with_name("run-log.lock")
+    with open(lock, "a") as holder:
+        fcntl.flock(holder, fcntl.LOCK_EX)
+        assert add(main, "note", "--text", "x") == 2
+        assert close(main, "--reason", "x") == 2
+    out = capsys.readouterr().out
+    assert out.count(f"run log is locked: {lock}") == 2
+    assert [e["kind"] for e in events(main)] == ["run-start"]
 
 
 def test_status_keeps_a_decision_left_open_by_an_earlier_run(repo_with_worktree, capsys):
@@ -317,7 +355,7 @@ def test_status_keeps_a_decision_left_open_by_an_earlier_run(repo_with_worktree,
     runlog.main(["status", "--repo", str(main)])
     out = capsys.readouterr().out
     assert f"OPEN decision #426: Raidbots as the source? (from run {run_a})" in out
-    assert "#427 dispatched" in out
+    assert "#427 decision-made another issue's answer" in out
 
 
 def test_a_decision_made_in_a_later_run_resolves_the_earlier_one(repo_with_worktree, capsys):

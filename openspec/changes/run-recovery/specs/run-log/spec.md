@@ -11,9 +11,13 @@ The run log SHALL refuse a `run-start` while the latest run has no `run-end`, an
 - **WHEN** several `run-start` calls race on a log with no open run
 - **THEN** exactly one succeeds and the rest are refused
 
-#### Scenario: An append that read the log before a close
-- **WHEN** an ordinary append has read the log while run A is open, and a `close` and a new `run-start` are attempted before it writes
-- **THEN** the append's line lands before the close is evaluated, it carries A's id, the close is refused as `no open run`, and the new run B stays open
+#### Scenario: Every append holds the lock from its read to its write
+- **WHEN** an ordinary append, a `run-end`, a `run-start` or a `close` runs
+- **THEN** the run-log lock is held when it reads the log and when it writes its line, within one acquisition
+
+#### Scenario: A lock held too long
+- **WHEN** another holder keeps the run-log lock longer than the lock timeout
+- **THEN** the append or close is refused with `run log is locked: <lock path>`, nothing is appended, and the CLI exits 2
 
 #### Scenario: A run-start after run-end
 - **WHEN** the latest run has a `run-end`

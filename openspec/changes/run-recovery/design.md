@@ -29,10 +29,29 @@ B's start, and a positional open-run check would then see B as ended. `close`
 writes through an internal helper while it already holds the lock, because a
 second `flock` from a separate `open()` in the same process blocks, so a nested
 call would deadlock. The lock file is never unlinked. Reads go through
-`runlog.read_file`, which the race regression test patches. `fcntl` is POSIX.
+`runlog.read_file`. `fcntl` is POSIX.
 herd requires Herdr, which runs on Linux and macOS, so this adds no new
 platform limit. Cost: one extra `open` + `flock` per append, on a log that
 gets a few hundred lines per run.
+
+**The lock is tested directly, not by racing threads (plan review round 2,
+finding 2).** A thread-and-sleep race test passes or fails on scheduling, and
+it passed against the very implementation it was meant to reject (one that
+locks only `run-start` and `close`). The test instead wraps `locked`,
+`read_file` and `_write`, and at each read and write it probes the lock
+from a second open file description with `LOCK_NB`. It then requires exactly
+enter → read (held) → write (held) → exit for an ordinary append, `run-end`,
+`run-start` and `close`. So `append` and `close` call those three through the
+module, and each reads the log once.
+
+**The lock gives up after `LOCK_TIMEOUT` = 30 s (plan review round 2, finding
+4).** `locked` polls `LOCK_NB` every 10 ms. When the timeout passes, it raises
+`TimeoutError`, which `append` and `close` turn into the refusal `run log is
+locked: <lock path>` (exit 2 on the CLI). A holder stuck for 30 s on a
+millisecond operation is a fault. With a blocking lock, a nested-lock bug would
+hang the lead and the test suite. With a bounded lock, it fails with a
+message. The eight-thread start test stays in process: any deadlock now ends
+in a refusal within the timeout, and the test fails on it.
 
 **Unique ids without a new format.** `run-start` uses microsecond timestamps,
 and `run` still equals that event's `ts`, so `librarian.py` and the existing
