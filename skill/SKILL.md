@@ -5,6 +5,11 @@ description: Run the Herdr three-agent build loop — the lead (this session) or
 
 # Herd — the lead orchestrates, pi builds, Codex reviews
 
+This skill governs `/herd` runs. `~/.claude/DEVLOOP.md` governs delegated
+builds outside `/herd`; where the two differ (who authorizes the spec, the
+review-round cap, who pushes), this skill wins inside a `/herd` run
+(operator ruling, #32).
+
 One session — **the lead, this one** — talks to the user, writes the spec,
 pre-executes it, rules on disputes, and does the final review. Everything
 else runs in Herdr panes beside it and reports inward. Proven shape:
@@ -482,6 +487,10 @@ The run's durable record is `<git common dir>/herd/run-log.jsonl`: one JSON
 line per checkpoint, appended, shared by every worktree, never committed.
 It replaces the hand-edited state file. After a compaction or a crash, the
 lead recovers from `runlog.py status` and live git/gh, not from memory.
+A crashed run stays open: resume it by appending as usual, or end it with
+`runlog.py close --reason "<why>"`. A second `run-start` is refused while
+a run is open, and `status` keeps listing decisions an earlier run left
+open, marked with that run's id (#32).
 
 The lead records each checkpoint as it happens (`runlog.py add <kind>
 --issue <id> …`): `run-start` first, then per issue `spec-approved` (with
@@ -492,7 +501,9 @@ the loop creates, `dispatched`, `review-round` (with `--round` and
 reproduce), `lead-finding` (each finding the lead's final pass caught after
 the reviewer signed off), `done`, `blocked`, `pr-opened` (with `--pr` and
 `--branch`), `fallback` whenever a roster fallback runs, `decision-needed` /
-`decision-made`, and `run-end`. These are the herd ledger's columns: a
+`decision-made`, `session` (with `--agent`, `--role` and `--outcome`
+resumed | fresh | failed | unknown, whenever the lead starts, reuses or
+recovers an agent), and `run-end`. These are the herd ledger's columns: a
 checkpoint the lead skips is a count the ledger gets wrong.
 Agents add `friction` lines themselves; their briefing and prompt carry the
 command. `status` shows each issue's progress and what is still open;

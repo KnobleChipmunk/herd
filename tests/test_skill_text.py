@@ -32,3 +32,13 @@ def test_the_sweep_commits_what_the_librarian_and_sync_left_in_proposals():
     sweep = text[text.index("5. **Proposals.**"): text.index("6. **Ask once.**")]
     assert "chore/proposals-sweep-<date>" in sweep
     assert "git status" in sweep and "proposals/" in sweep
+
+
+def test_the_skill_states_it_governs_herd_runs_over_devloop():
+    """Operator ruling on #32: scope the two loops; the skill wins inside a /herd run."""
+    text = SKILL.read_text()
+    intro = paragraph(text, "One session — **the lead, this one**")
+    scope = " ".join(text[text.index("# Herd"): text.index("One session — **the lead, this one**")].split())
+    assert "DEVLOOP.md" in scope
+    assert "wins" in scope and "/herd" in scope
+    assert "DEVLOOP" not in intro
