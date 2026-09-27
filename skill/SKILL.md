@@ -481,6 +481,19 @@ or a failed restore); it refuses to start while pytest is running in the
 tree. A SURVIVED result means the test or the mutation is wrong — fix the
 spec, never skip the drive.
 
+## Tickets (`tools/tickets.py`)
+
+A question goes as a message (`herdr agent prompt`); work someone must own
+goes as a ticket. `tickets.py create --title <t> --to <owner> --by <you>
+[--parent <issue>]` opens one; its owner `claim`s it, then `close`s it with
+a reason (`no-follow-on`, `denied`, `canceled`, `superseded`, or
+`escalation --target <who>`), `block`s it `--on <who>`, or `handoff`s it `--to <next owner>`,
+which closes it and opens the successor in one write. Record each gate
+with `check <id> --name <n> --status pass|fail|not-checked|blocked|omitted
+[--candidate <commit>]` (a pass names the candidate it was measured on);
+`page <id>` writes the ticket's page to `<git common dir>/herd/tickets/`.
+An omitted, blocked or unchecked gate is never a PASS (#36, #37).
+
 ## Run log (`tools/runlog.py`)
 
 The run's durable record is `<git common dir>/herd/run-log.jsonl`: one JSON

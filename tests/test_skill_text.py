@@ -50,3 +50,11 @@ def test_the_lead_starts_the_attention_watcher_and_names_the_monitor():
     assert "attention.py watch --repo <repo>" in monitoring
     assert "attention.py monitor --repo <repo>" in monitoring
     assert "run-start" in monitoring
+
+
+def test_the_skill_separates_messages_from_owned_work():
+    text = " ".join(SKILL.read_text().split())
+    tickets = text[text.index("## Tickets"): text.index("## Run log")]
+    assert "A question goes as a message" in tickets and "goes as a ticket" in tickets
+    assert "tickets.py create" in tickets and "handoff" in tickets and "never a PASS" in tickets
+
