@@ -1,0 +1,30 @@
+# Model recommendations per role, read by `herdsetup.py assisted` (#39).
+# Each entry says why, what kind of evidence it rests on, and when it was
+# written: `official` (vendor documentation), `preference` (the operator's
+# choice), `observed` (a herd run's outcome, cited). Setup offers only entries
+# whose harness is installed, flags entries older than 180 days, and never
+# forces a choice; mixing models across an author and its evaluator is the
+# recommendation (docs/team-design.md §4). Unknown is fine: leave a role out.
+version: 1
+roles:
+  lead:
+    - {harness: claude, model: claude-opus-5-5, source: preference, date: "2026-09-25",
+       reason: "writes and pre-executes specs; the operator's lead since 2026-09-25"}
+  builder:
+    - {harness: pi, provider: ollama, model: "swift15-qwen3.8-128k:latest", source: observed, date: "2026-09-27",
+       reason: "built herd #32 and #33 byte-identical to the lead's fences, local, no quota"}
+    - {harness: claude, model: sonnet, source: preference, date: "2026-09-27",
+       reason: "a hosted builder for machines without a local model"}
+  plan_reviewer:
+    - {harness: codex, model: gpt-6-astra, settings: {reasoning_effort: high}, source: observed, date: "2026-09-27",
+       reason: "found the #32 lock race and the #33 wait/tab defects the lead missed"}
+    - {harness: claude, model: fable, source: preference, date: "2026-09-27",
+       reason: "a reviewer model other than an Opus lead's, when Codex is absent"}
+  build_reviewer:
+    - {harness: codex, model: gpt-6-sol, settings: {reasoning_effort: high}, source: preference, date: "2026-09-27",
+       reason: "the operator's build reviewer; one-round clean reviews came with lead pre-execution (KnobleChipmunk/project-mera#321, PRs #377/#378, 2026-08-25)"}
+    - {harness: claude, model: fable, source: preference, date: "2026-09-27",
+       reason: "a model other than the builder's, when Codex is absent"}
+  qa:
+    - {harness: codex, model: gpt-6-sol, settings: {reasoning_effort: high}, source: preference, date: "2026-09-27",
+       reason: "a model other than the builder's for independent executed checks (team design T1)"}
