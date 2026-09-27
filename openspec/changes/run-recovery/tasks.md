@@ -16,7 +16,7 @@ choice worth recording. Gates are measured on this branch at the spec commit.
 - [x] 1.3 `tests/test_skill_text.py`: the skill states it governs `/herd` runs
   over DEVLOOP.md, between its title and its intro paragraph.
 - [x] 1.4 Plan review round 1 folds: the concurrent-start test collects every
-  worker's result through futures and checks 8 results, 7 refusals naming the
+  worker's result or exception from daemon threads and checks 8 results, 7 refusals naming the
   winning run; a lock regression (round 2 replaced the timing-based race test
   with `test_every_append_holds_the_lock_from_its_read_to_its_write`; round 3
   added `test_an_append_waits_out_brief_contention` and
