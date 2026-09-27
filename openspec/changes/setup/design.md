@@ -12,5 +12,10 @@ Claude-only, Codex-only or mixed machine is tested without a terminal.
 
 ## Rejected
 
+- Refusing or re-asking a saved choice because its harness is not installed
+  now (build review round 3, lead ruling): saved choices stay saved —
+  rediscovery never overrides them (U4); with every role saved, setup still
+  offers to keep them; `herdsetup.py validate` reports an uninstalled harness.
+
 - Probing every candidate during setup: costs quota before the user chose;
   readiness stays a separate, consented step (#38).
