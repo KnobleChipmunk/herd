@@ -42,3 +42,11 @@ def test_the_skill_states_it_governs_herd_runs_over_devloop():
     assert "DEVLOOP.md" in scope
     assert "wins" in scope and "/herd" in scope
     assert "DEVLOOP" not in intro
+
+
+def test_the_lead_starts_the_attention_watcher_and_names_the_monitor():
+    text = " ".join(SKILL.read_text().split())
+    monitoring = text[text.index("## Monitoring"): text.index("## Rulings")]
+    assert "attention.py watch --repo <repo>" in monitoring
+    assert "attention.py monitor --repo <repo>" in monitoring
+    assert "run-start" in monitoring
