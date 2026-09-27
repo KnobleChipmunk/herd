@@ -21,6 +21,7 @@ FENCECHECK = pathlib.Path(__file__).resolve().parent / "fencecheck.py"
 GATES = pathlib.Path(__file__).resolve().parent / "gates.py"
 MUTATE = pathlib.Path(__file__).resolve().parent / "mutate.py"
 RUNLOG = pathlib.Path(__file__).resolve().parent / "runlog.py"
+DISPATCH = pathlib.Path(__file__).resolve().parent / "dispatch.py"
 
 
 def resolve_lead_pane(explicit: str | None) -> str:
@@ -120,13 +121,12 @@ byte for byte.
 Review round N (N = 1, 2): make the per-round prompt, then send it.
 
     sed -e "s/ROUND_N/N/g" -e "s/RULINGS_PLACEHOLDER/none/" CODEX-PROMPT-{id}.md > CODEX-PROMPT-{id}-round-N.md
-    herdr agent prompt {reviewer} "$(cat CODEX-PROMPT-{id}-round-N.md)" --wait --timeout 540000
+    python3 {DISPATCH} {reviewer} --file CODEX-PROMPT-{id}-round-N.md
 
 (Replace the N in the sed and the file names with the round number. If the
-lead gave you a ruling, put its sentence in place of `none`.) If the command
-exits with "timed out waiting for agent status", the reviewer is STILL
-WORKING: run `herdr agent wait {reviewer} --timeout 540000` and repeat until
-it returns. Then read `REVIEW-{id}-round-N.md`. Fix every CONFIRMED finding,
+lead gave you a ruling, put its sentence in place of `none`.) The command
+returns only when the reviewer has settled; a Herdr wait timeout is treated
+as "still working" and waited out. Then read `REVIEW-{id}-round-N.md`. Fix every CONFIRMED finding,
 re-run ALL gates, update the handoff, send the next round. Cap: 2 rounds.
 
 When the review file ends with `REVIEW CLEAN`:
