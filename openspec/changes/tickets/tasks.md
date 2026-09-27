@@ -149,7 +149,7 @@ def test_handoff_closes_one_ticket_and_opens_its_successor_in_one_write(repo_wit
     assert t(main, "handoff", tid, "--by", "builder", "--to", "reviewer", "--title", "Review the watcher") == 0
     successor = created_id(capsys)
     tickets_now = state(main)
-    assert writes == [2]
+    assert writes == [1]  # one record closes T1 and opens its successor
     assert (tickets_now[tid]["state"], tickets_now[tid]["reason"], tickets_now[tid]["target"]) == (
         "closed", "handed_off_to", "reviewer")
     assert (tickets_now[successor]["state"], tickets_now[successor]["owner"], tickets_now[successor]["parent"],
@@ -185,10 +185,10 @@ def test_a_check_records_status_reason_and_evidence(repo_with_worktree, capsys):
     tid = new(main, capsys)
     assert t(main, "check", tid, "--by", "lead", "--name", "qa", "--status", "omitted", "--text", "small tier") == 0
     assert t(main, "check", tid, "--by", "qa", "--name", "suite", "--status", "pass",
-             "--evidence", "HANDOFF-33.md") == 0
+             "--evidence", "HANDOFF-33.md", "--candidate", "abc123") == 0
     checks = state(main)[tid]["checks"]
-    assert checks == {"qa": {"status": "omitted", "text": "small tier", "evidence": None},
-                      "suite": {"status": "pass", "text": None, "evidence": "HANDOFF-33.md"}}
+    assert checks == {"qa": {"status": "omitted", "text": "small tier", "evidence": None, "candidate": None},
+                      "suite": {"status": "pass", "text": None, "evidence": "HANDOFF-33.md", "candidate": "abc123"}}
 
 
 def test_a_check_status_outside_the_set_is_refused(repo_with_worktree, capsys):
@@ -203,14 +203,15 @@ def test_the_page_is_generated_at_a_stable_address_from_records(repo_with_worktr
     main, _ = repo_with_worktree
     tid = new(main, capsys, parent="33")
     t(main, "claim", tid, "--by", "builder")
-    t(main, "check", tid, "--by", "builder", "--name", "suite", "--status", "pass", "--evidence", "HANDOFF-33.md")
+    t(main, "check", tid, "--by", "builder", "--name", "suite", "--status", "pass", "--evidence", "HANDOFF-33.md",
+      "--candidate", "abc123")
     assert t(main, "page", tid) == 0
     page = tickets.page_path(main, tid)
     assert page == runlog.log_path(main).parent / "tickets" / "T1.md"
     text = page.read_text()
     assert text.startswith("# T1 — Build the watcher\n")
     assert "Owner: builder · State: in-progress · Parent: #33" in text
-    assert "| suite | pass | HANDOFF-33.md |" in text
+    assert "| suite | pass | abc123 | HANDOFF-33.md |" in text
     assert "created by lead" in text and "claimed by builder" in text
 
 
@@ -218,7 +219,7 @@ def test_the_page_is_generated_at_a_stable_address_from_records(repo_with_worktr
 def test_the_verdict_is_never_pass_while_any_check_is_not_a_pass(repo_with_worktree, capsys, status):
     main, _ = repo_with_worktree
     tid = new(main, capsys)
-    t(main, "check", tid, "--by", "qa", "--name", "suite", "--status", "pass")
+    t(main, "check", tid, "--by", "qa", "--name", "suite", "--status", "pass", "--candidate", "c1")
     t(main, "check", tid, "--by", "qa", "--name", "qa", "--status", status, "--text", "why")
     t(main, "page", tid)
     text = tickets.page_path(main, tid).read_text()
@@ -230,9 +231,9 @@ def test_the_verdict_is_pass_only_when_every_recorded_check_passed(repo_with_wor
     tid = new(main, capsys)
     t(main, "page", tid)
     assert "Verdict: NO CHECKS" in tickets.page_path(main, tid).read_text()
-    t(main, "check", tid, "--by", "qa", "--name", "suite", "--status", "pass")
+    t(main, "check", tid, "--by", "qa", "--name", "suite", "--status", "pass", "--candidate", "c1")
     t(main, "page", tid)
-    assert "Verdict: PASS" in tickets.page_path(main, tid).read_text()
+    assert "Verdict: PASS on c1" in tickets.page_path(main, tid).read_text()
 
 
 def test_the_page_links_the_parent_issues_run_log_events(repo_with_worktree, capsys):
@@ -271,6 +272,64 @@ def test_the_store_is_append_only_json_lines(repo_with_worktree, capsys):
     t(main, "claim", tid, "--by", "builder")
     ops = [json.loads(ln)["op"] for ln in tickets.path(main).read_text().splitlines()]
     assert ops == ["create", "claim"]
+
+
+# --- plan review #36 round 1 -------------------------------------------------
+
+def test_a_pass_needs_the_candidate_it_was_measured_on(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    tid = new(main, capsys)
+    assert t(main, "check", tid, "--by", "qa", "--name", "suite", "--status", "pass") == 2
+    assert "a pass needs --candidate" in capsys.readouterr().out
+    assert state(main)[tid]["checks"] == {}
+
+
+def test_passes_on_different_candidates_are_not_a_pass(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    tid = new(main, capsys)
+    t(main, "check", tid, "--by", "qa", "--name", "suite", "--status", "pass", "--candidate", "c1")
+    t(main, "check", tid, "--by", "qa", "--name", "qa", "--status", "pass", "--candidate", "c2")
+    t(main, "page", tid)
+    text = tickets.page_path(main, tid).read_text()
+    assert "Verdict: NOT PASS (checks on different candidates: c1, c2)" in text
+
+
+@pytest.mark.parametrize("args", [
+    ["create", "--title", "x", "--to", "", "--by", "lead"],
+    ["create", "--title", "x", "--to", "builder", "--by", "  "],
+    ["block", "T1", "--by", "builder", "--on", " ", "--text", "waiting"],
+    ["handoff", "T1", "--by", "builder", "--to", ""],
+    ["close", "T1", "--by", "builder", "--reason", "escalation", "--target", "   "],
+])
+def test_blank_owners_actors_and_targets_are_refused(repo_with_worktree, capsys, args):
+    main, _ = repo_with_worktree
+    new(main, capsys)
+    before = tickets.path(main).read_bytes()
+    with pytest.raises(SystemExit):
+        t(main, *args)
+    assert "must not be blank" in capsys.readouterr().err
+    assert tickets.path(main).read_bytes() == before
+
+
+def test_an_interrupted_last_line_is_ignored_and_dropped_before_the_next_write(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    new(main, capsys)
+    with tickets.path(main).open("a") as f:
+        f.write('{"ticket": "T2", "op": "cre')  # a crash mid-write: no newline
+    assert list(state(main)) == ["T1"]
+    assert new(main, capsys, title="after the crash") == "T2"
+    lines = tickets.path(main).read_text().splitlines()
+    assert [json.loads(ln)["ticket"] for ln in lines] == ["T1", "T2"]
+    assert state(main)["T2"]["title"] == "after the crash"
+
+
+def test_a_handoff_successor_counts_toward_the_next_id(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    tid = new(main, capsys)
+    t(main, "handoff", tid, "--by", "builder", "--to", "reviewer")
+    capsys.readouterr()
+    assert new(main, capsys) == "T3"
+
 ```
 
 - [ ] **T2** `tests/test_skill_text.py` — the skill separates messages from owned work
@@ -319,20 +378,23 @@ usage: tickets.py create  --title T --to OWNER --by WHO [--parent ISSUE] [--repo
        tickets.py close   ID --by OWNER --reason no-follow-on|denied|canceled|superseded|escalation [--target WHO]
        tickets.py handoff ID --by OWNER --to NEW_OWNER [--title T]
        tickets.py check   ID --by WHO --name NAME --status pass|fail|not-checked|blocked|omitted
-                          [--text WHY] [--evidence PATH]
+                          [--candidate COMMIT] [--text WHY] [--evidence PATH]   (a pass needs --candidate)
        tickets.py list [--all] | show ID | page ID | pages
 
 Owned work lives here; questions go as `herdr agent prompt` messages. The store
 is <git common dir>/herd/tickets.jsonl, append-only, one event per line, shared
 by every worktree and every run. Every write holds the run log's lock from
 reading the store to writing, so a handoff closes one ticket and opens its
-successor in one write. The contracts are copied from OpenRig's `rig queue`
+successor in one record (a line is complete only with its newline; an
+incomplete last line from a crash is ignored when read and dropped, by an
+atomic rewrite, before the next write). The contracts are copied from OpenRig's `rig queue`
 (docs/openrig-evaluation.md): a ticket stays pending until its owner claims
 it; it closes only with a reason from a closed set (handed_off_to comes from
 handoff, blocked_on from block, which keeps the ticket open); a routed reason
 names its target. A page is generated from the records at
-<git common dir>/herd/tickets/<ID>.md; an omitted, blocked, failed or
-unchecked check means the verdict is never PASS.
+<git common dir>/herd/tickets/<ID>.md; the verdict is PASS only when every
+recorded check passed on one named candidate (commit or tree id). Owners,
+actors and targets must not be blank.
 """
 from __future__ import annotations
 
@@ -358,7 +420,10 @@ def page_path(repo: pathlib.Path, tid: str) -> pathlib.Path:
 
 
 def read(p: pathlib.Path) -> list[dict]:
-    return [json.loads(ln) for ln in p.read_text().splitlines() if ln] if p.exists() else []
+    """Complete records only: text after the last newline is an interrupted write."""
+    if not p.exists():
+        return []
+    return [json.loads(ln) for ln in p.read_text().split("\n")[:-1] if ln]
 
 
 def fold(events: list[dict]) -> dict[str, dict]:
@@ -369,6 +434,10 @@ def fold(events: list[dict]) -> dict[str, dict]:
         if op == "create":
             out[tid] = {"title": e["title"], "owner": e["owner"], "state": "pending", "parent": e.get("parent"),
                         "after": e.get("after"), "reason": None, "target": None, "checks": {}, "history": []}
+        if op == "handoff":
+            out[e["successor"]] = {"title": e["title"], "owner": e["to"], "state": "pending", "parent": e.get("parent"),
+                                   "after": tid, "reason": None, "target": None, "checks": {}, "history": [e]}
+            out[tid].update(state="closed", reason="handed_off_to", target=e["to"])
         t = out[tid]
         if op == "claim":
             t.update(state="in-progress", reason=None, target=None)
@@ -377,7 +446,8 @@ def fold(events: list[dict]) -> dict[str, dict]:
         elif op == "close":
             t.update(state="closed", reason=e["reason"], target=e.get("target"))
         elif op == "check":
-            t["checks"][e["name"]] = {"status": e["status"], "text": e.get("text"), "evidence": e.get("evidence")}
+            t["checks"][e["name"]] = {"status": e["status"], "text": e.get("text"), "evidence": e.get("evidence"),
+                                      "candidate": e.get("candidate")}
         t["history"].append(e)
     return out
 
@@ -387,10 +457,20 @@ def load(repo: pathlib.Path) -> dict[str, dict]:
 
 
 def _write_all(p: pathlib.Path, events: list[dict]) -> None:
-    """Append every event in one write; the caller holds the lock."""
+    """Append records durably; the caller holds the lock. An incomplete last line (a crashed write) is
+    dropped first by an atomic rewrite, so it can never join the next record."""
+    if p.exists():
+        data = p.read_bytes()
+        if data and not data.endswith(b"\n"):
+            tmp = p.with_suffix(".tmp")
+            tmp.write_bytes(data[:data.rfind(b"\n") + 1])
+            os.replace(tmp, p)
+    payload = "".join(json.dumps(e) + "\n" for e in events).encode()
     fd = os.open(p, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
     try:
-        os.write(fd, "".join(json.dumps(e) + "\n" for e in events).encode())
+        while payload:
+            payload = payload[os.write(fd, payload):]
+        os.fsync(fd)
     finally:
         os.close(fd)
 
@@ -424,8 +504,12 @@ def owned(state: dict, tid: str, by: str) -> str | None:
     return None
 
 
+def next_id(events: list[dict]) -> str:
+    return f"T{sum(e['op'] in ('create', 'handoff') for e in events) + 1}"
+
+
 def create(events, state, a) -> tuple[str | None, list[dict]]:
-    tid = f"T{sum(e['op'] == 'create' for e in events) + 1}"
+    tid = next_id(events)
     return None, [{"ts": stamp(), "ticket": tid, "op": "create", "by": a.by, "title": a.title, "owner": a.to,
                    **({"parent": a.parent} if a.parent else {})}]
 
@@ -453,28 +537,35 @@ def handoff(events, state, a):
     why = owned(state, a.id, a.by)
     if why:
         return why, []
-    successor = f"T{sum(e['op'] == 'create' for e in events) + 1}"
     old = state[a.id]
-    now = stamp()
-    return None, [{"ts": now, "ticket": a.id, "op": "close", "by": a.by, "reason": "handed_off_to", "target": a.to},
-                  {"ts": now, "ticket": successor, "op": "create", "by": a.by, "owner": a.to, "after": a.id,
-                   "title": a.title or old["title"], **({"parent": old["parent"]} if old["parent"] else {})}]
+    return None, [{"ts": stamp(), "ticket": a.id, "op": "handoff", "by": a.by, "to": a.to,
+                   "successor": next_id(events), "title": a.title or old["title"],
+                   **({"parent": old["parent"]} if old["parent"] else {})}]
 
 
 def check(events, state, a):
     why = None if a.id in state else f"no ticket {a.id}"
+    if not why and a.status == "pass" and not a.candidate:
+        why = "a pass needs --candidate (the commit or tree it was measured on)"
     return why, [{"ts": stamp(), "ticket": a.id, "op": "check", "by": a.by, "name": a.name, "status": a.status,
-                  **({"text": a.text} if a.text else {}), **({"evidence": a.evidence} if a.evidence else {})}]
+                  **({"text": a.text} if a.text else {}), **({"evidence": a.evidence} if a.evidence else {}),
+                  **({"candidate": a.candidate} if a.candidate else {})}]
 
 
 def verdict(checks: dict) -> str:
     if not checks:
         return "NO CHECKS"
-    return "PASS" if all(c["status"] == "pass" for c in checks.values()) else "NOT PASS"
+    if not all(c["status"] == "pass" for c in checks.values()):
+        return "NOT PASS"
+    candidates = sorted({c["candidate"] for c in checks.values()})
+    if len(candidates) > 1:
+        return f"NOT PASS (checks on different candidates: {', '.join(candidates)})"
+    return f"PASS on {candidates[0]}"
 
 
 def history_line(e: dict) -> str:
     what = {"create": "created", "claim": "claimed", "check": f"check {e.get('name')}: {e.get('status')}",
+            "handoff": f"handed off to {e.get('to')} as {e.get('successor')}",
             "block": f"blocked on {e.get('on')}", "close": f"closed ({e.get('reason')}"
             + (f" → {e['target']}" if e.get("target") else "") + ")"}[e["op"]]
     detail = f" — {e['text']}" if e.get("text") else ""
@@ -486,8 +577,9 @@ def render(repo: pathlib.Path, tid: str, t: dict) -> str:
              f"Owner: {t['owner']} · State: {t['state']} · Parent: " + (f"#{t['parent']}" if t["parent"] else "—")
              + (f" · After: {t['after']}" if t["after"] else ""),
              f"Verdict: {verdict(t['checks'])}", "", "## Checks", "",
-             "| Check | Status | Evidence | Note |", "|---|---|---|---|"]
-    lines += [f"| {n} | {c['status']} | {c['evidence'] or ''} | {c['text'] or ''} |" for n, c in t["checks"].items()]
+             "| Check | Status | Candidate | Evidence | Note |", "|---|---|---|---|---|"]
+    lines += [f"| {n} | {c['status']} | {c['candidate'] or ''} | {c['evidence'] or ''} | {c['text'] or ''} |"
+              for n, c in t["checks"].items()]
     lines += ["", "## History", ""] + [history_line(e) for e in t["history"]]
     if t["parent"]:
         issue_events = [e for e in runlog.read(repo) if e.get("issue") == t["parent"]]
@@ -501,29 +593,36 @@ def write_page(repo: pathlib.Path, tid: str, t: dict) -> None:
     p.write_text(render(repo, tid, t))
 
 
+def nonblank(value: str) -> str:
+    if not value.strip():
+        raise argparse.ArgumentTypeError("must not be blank")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("create")
-    c.add_argument("--title", required=True)
-    c.add_argument("--to", required=True)
-    c.add_argument("--by", required=True)
+    c.add_argument("--title", required=True, type=nonblank)
+    c.add_argument("--to", required=True, type=nonblank)
+    c.add_argument("--by", required=True, type=nonblank)
     c.add_argument("--parent")
     for name in ("claim", "block", "close", "handoff", "check", "show", "page"):
         s = sub.add_parser(name)
         s.add_argument("id")
         if name not in ("show", "page"):
-            s.add_argument("--by", required=True)
-    sub.choices["block"].add_argument("--on", required=True)
+            s.add_argument("--by", required=True, type=nonblank)
+    sub.choices["block"].add_argument("--on", required=True, type=nonblank)
     sub.choices["block"].add_argument("--text", required=True)
     sub.choices["close"].add_argument("--reason", required=True, choices=CLOSE_REASONS)
-    sub.choices["close"].add_argument("--target")
-    sub.choices["handoff"].add_argument("--to", required=True)
-    sub.choices["handoff"].add_argument("--title")
+    sub.choices["close"].add_argument("--target", type=nonblank)
+    sub.choices["handoff"].add_argument("--to", required=True, type=nonblank)
+    sub.choices["handoff"].add_argument("--title", type=nonblank)
     sub.choices["check"].add_argument("--name", required=True)
     sub.choices["check"].add_argument("--status", required=True, choices=CHECK_STATUSES)
     sub.choices["check"].add_argument("--text")
     sub.choices["check"].add_argument("--evidence")
+    sub.choices["check"].add_argument("--candidate", type=nonblank)
     sub.add_parser("pages")
     sub.add_parser("list").add_argument("--all", action="store_true")
     for s in sub.choices.values():
@@ -536,7 +635,8 @@ def main(argv: list[str] | None = None) -> int:
         if why:
             print(why)
             return 2
-        created = [e["ticket"] for e in new if e["op"] == "create"]
+        created = [e["successor"] if e["op"] == "handoff" else e["ticket"]
+                   for e in new if e["op"] in ("create", "handoff")]
         if created:
             print(created[-1])
         return 0
@@ -584,7 +684,8 @@ goes as a ticket. `tickets.py create --title <t> --to <owner> --by <you>
 a reason (`no-follow-on`, `denied`, `canceled`, `superseded`, or
 `escalation --target <who>`), `block`s it `--on <who>`, or `handoff`s it `--to <next owner>`,
 which closes it and opens the successor in one write. Record each gate
-with `check <id> --name <n> --status pass|fail|not-checked|blocked|omitted`;
+with `check <id> --name <n> --status pass|fail|not-checked|blocked|omitted
+[--candidate <commit>]` (a pass names the candidate it was measured on);
 `page <id>` writes the ticket's page to `<git common dir>/herd/tickets/`.
 An omitted, blocked or unchecked gate is never a PASS (#36, #37).
 
@@ -592,7 +693,7 @@ An omitted, blocked or unchecked gate is never a PASS (#36, #37).
 
 ## 3. Gates
 
-- Full suite at the base (`feat/33-attention` after its build): `297 passed`. After: `297 + 29 = 326 passed` (28 in `tests/test_tickets.py` with parametrized cases, 1 new skill-text test). ~8 s.
+- Full suite at the base (`feat/33-attention` after its build): `297 passed`. After: `297 + 38 = 335 passed` (37 in `tests/test_tickets.py` with parametrized cases, 1 new skill-text test). ~8 s.
 - `ruff check tools tests` → `All checks passed!`; `openspec validate tickets` valid.
 
 ## 4. Mutations
@@ -644,17 +745,16 @@ Killer: `tests/test_tickets.py::test_escalation_needs_a_target`
 - [ ] **M4** in `tools/tickets.py`: replace
 
 ```python
-            _write_all(p, new)
+        if data and not data.endswith(b"\n"):
 ```
 
 with
 
 ```python
-            for e in new:
-                _write_all(p, [e])
+        if False:
 ```
 
-Killer: `tests/test_tickets.py::test_handoff_closes_one_ticket_and_opens_its_successor_in_one_write`
+Killer: `tests/test_tickets.py::test_an_interrupted_last_line_is_ignored_and_dropped_before_the_next_write`
 
 - [ ] **M5** in `tools/tickets.py`: replace
 
@@ -729,13 +829,55 @@ Killer: `tests/test_tickets.py::test_list_shows_open_tickets_with_owner_and_stat
 - [ ] **M10** in `tools/tickets.py`: replace
 
 ```python
-"title": a.title or old["title"], **({"parent": old["parent"]} if old["parent"] else {})}]
+            out[tid].update(state="closed", reason="handed_off_to", target=e["to"])
 ```
 
 with
 
 ```python
-"title": a.title or old["title"]}]
+
 ```
 
 Killer: `tests/test_tickets.py::test_handoff_closes_one_ticket_and_opens_its_successor_in_one_write`
+
+- [ ] **M11** in `tools/tickets.py`: replace
+
+```python
+    if not why and a.status == "pass" and not a.candidate:
+```
+
+with
+
+```python
+    if False:
+```
+
+Killer: `tests/test_tickets.py::test_a_pass_needs_the_candidate_it_was_measured_on`
+
+- [ ] **M12** in `tools/tickets.py`: replace
+
+```python
+    if not value.strip():
+```
+
+with
+
+```python
+    if False:
+```
+
+Killer: `tests/test_tickets.py::test_blank_owners_actors_and_targets_are_refused`
+
+- [ ] **M13** in `tools/tickets.py`: replace
+
+```python
+    if len(candidates) > 1:
+```
+
+with
+
+```python
+    if False:
+```
+
+Killer: `tests/test_tickets.py::test_passes_on_different_candidates_are_not_a_pass`

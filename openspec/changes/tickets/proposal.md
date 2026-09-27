@@ -19,6 +19,12 @@ three contracts from OpenRig's `rig queue` (docs/openrig-evaluation.md).
   a routed reason names its target; `handoff` closes one ticket and opens its
   successor in one write.
 - Only the owner may claim, block, close or hand off; anyone may record a check.
+  Owners, actors and targets must not be blank (plan review round 1).
+- A handoff is ONE record that closes the ticket and opens its successor; a
+  line counts only with its newline, an interrupted last line is ignored and
+  dropped (atomic rewrite) before the next write, and appends are fsynced.
+- A check can name its candidate (commit or tree); a pass must. The verdict is
+  `PASS on <candidate>` only when every check passed on one candidate.
 - Every write holds #32's run-log lock from reading the store to writing.
 - `page <id>` writes `<git common dir>/herd/tickets/<id>.md` from the records:
   owner, state, parent, verdict, checks, history, and the parent issue's run-log

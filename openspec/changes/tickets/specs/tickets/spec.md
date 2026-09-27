@@ -31,3 +31,14 @@ A handoff SHALL close the ticket as `handed_off_to` its new owner and open a pen
 #### Scenario: An omitted check
 - **WHEN** one check passed and another is omitted, blocked, failed or not-checked
 - **THEN** the page's verdict is NOT PASS
+
+#### Scenario: Passes on two candidates
+- **WHEN** every check passed but on different candidates
+- **THEN** the verdict is NOT PASS and names both
+
+### Requirement: One durable handoff record
+A handoff SHALL be written as one record; an incomplete last line SHALL be ignored when read and dropped before the next write; blank owners, actors and targets SHALL be refused.
+
+#### Scenario: A crash mid-write
+- **WHEN** the store ends with a line without its newline
+- **THEN** readers ignore it and the next write removes it first
