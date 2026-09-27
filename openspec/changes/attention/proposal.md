@@ -36,7 +36,8 @@ ticket either.
   - Stall eligibility follows the issue's latest *work* event, so answering a
     decision makes unfinished work eligible again.
   - A failed `herdr agent list`, or an unknown run tab, claims nothing about
-    who is working. The watcher records the run tab; `scan` and `monitor` use it.
+    who is working. `run-start` records the run's tab (`--tab`); watcher, scan
+    and monitor re-read it from the current run on every poll (round 2).
   - One watcher per repository (a lock held for its lifetime). An item counts
     as sent only when Herdr reports it shown; a dropped one is retried; ntfy is
     best effort and never stops the watcher; state is written atomically.

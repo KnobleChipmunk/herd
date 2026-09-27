@@ -350,15 +350,50 @@ def test_only_one_watcher_runs_per_repository(repo_with_worktree):
         assert again is True
 
 
-def test_the_watcher_records_the_run_tab_and_the_monitor_uses_it(repo_with_worktree, monkeypatch, capsys):
+def test_each_run_brings_its_own_tab_and_the_monitor_follows_it(repo_with_worktree, monkeypatch, capsys):
+    """A long-lived watcher or monitor must not keep an earlier run's tab (plan review #33 round 2)."""
     main, _ = repo_with_worktree
-    write_log(main, ev("run-start", 30))
-    attention.watch_once(main, [], NOW, sink=lambda t, b, s: True, tab="w1:tA")
-    monkeypatch.setattr(attention, "herdr_agents", lambda: [agent("pi_build", "working", tab="w1:tA")])
-    monkeypatch.delenv("HERDR_TAB_ID", raising=False)
+    write_log(main, ev("run-start", 90, run="A", tab="w1:tA"), ev("run-end", 80, run="A"),
+              ev("run-start", 30, run="B", tab="w1:tB"), ev("dispatched", 25, run="B", issue="40"))
+    monkeypatch.setattr(attention, "herdr_agents", lambda: [agent("pi_build", "working", tab="w1:tB"),
+                                                            agent("old", "idle", tab="w1:tA")])
     assert attention.main(["monitor", "--repo", str(main), "--once"]) == 0
     out = capsys.readouterr().out
-    assert "run tab w1:tA" in out and "(outside run)" not in out
+    assert "run tab w1:tB" in out
+    assert "pi_build" in out.split("\n")[2] and "(outside run)" not in out.split("\n")[2]
+    sent = attention.watch_once(main, [agent("pi_build", "idle", tab="w1:tB"), agent("old", "working", tab="w1:tA")],
+                                NOW, sink=lambda t, b, s: True, tab=None)
+    assert [i["kind"] for i in sent] == ["parked"]
+
+
+def test_a_run_without_a_recorded_tab_claims_no_stall(repo_with_worktree):
+    main, _ = repo_with_worktree
+    write_log(main, ev("run-start", 60), ev("dispatched", 50, issue="32"))
+    assert attention.watch_once(main, [agent("pi_build", "idle")], NOW, sink=lambda t, b, s: True, tab=None) == []
+
+
+def test_a_decision_after_a_wait_ends_the_wait():
+    events = log(ev("run-start", 90), ev("dispatched", 80, issue="32"), ev("wait", 75, issue="32", reason="peer"),
+                 ev("decision-needed", 70, issue="32", text="scope?"), ev("decision-made", 60, issue="32", text="x"))
+    assert "parked" in kinds(diagnose(events, [agent("pi_build", "idle")]))
+    still = log(ev("run-start", 90), ev("dispatched", 80, issue="32"), ev("wait", 75, issue="32", reason="peer"))
+    assert "parked" not in kinds(diagnose(still, [agent("pi_build", "idle")]))
+
+
+def test_the_monitor_uses_the_same_thresholds_as_scan(repo_with_worktree, monkeypatch, capsys):
+    main, _ = repo_with_worktree
+    now = datetime.datetime.now(datetime.timezone.utc)
+    stamp = lambda m: (now - datetime.timedelta(minutes=m)).isoformat(timespec="seconds")  # noqa: E731
+    write_log(main, {"ts": stamp(40), "run": "R", "kind": "run-start", "tab": TAB},
+              {"ts": stamp(30), "run": "R", "kind": "dispatched", "issue": "32"},
+              {"ts": stamp(20), "run": "R", "kind": "blocked", "issue": "31", "text": "x"})
+    monkeypatch.setattr(attention, "herdr_agents", lambda: [agent("pi_build", "idle")])
+    attention.main(["monitor", "--repo", str(main), "--once", "--stall", "60", "--overdue", "60"])
+    lenient = capsys.readouterr().out
+    attention.main(["monitor", "--repo", str(main), "--once"])
+    strict = capsys.readouterr().out
+    assert "Run may be stalled" not in lenient and "overdue" not in lenient
+    assert "Run may be stalled" in strict and "Lead intervention overdue: #31" in strict
 
 
 def test_the_monitor_shows_lead_attention_evidence_and_unknown_provenance():
@@ -368,7 +403,6 @@ def test_the_monitor_shows_lead_attention_evidence_and_unknown_provenance():
     lead = out[out.index("LEAD"): out.index("NEEDS YOU")]
     assert "Lead intervention overdue: #32" in lead
     assert "/w/32" in out and "binding: unknown" in out and "(unassociated)" in out
-
 ```
 
 - [ ] **T2** `tests/test_skill_text.py` — the skill names the watcher and the monitor
@@ -451,7 +485,7 @@ Replace it with exactly:
 known-first-party = ["attention", "fencecheck",
 ```
 
-- [ ] **I2** `tools/runlog.py` — wait kind; one open decision per issue
+- [ ] **I2** `tools/runlog.py` — wait kind; one open decision per issue; the run's tab
 
 REPLACE THE WHOLE FILE. Delete everything in it and write exactly this body (byte-exact, ends with one newline):
 
@@ -502,7 +536,7 @@ REQUIRED = {"worktree-created": ("worktree",), "scratch-created": ("worktree",),
 PROGRESS = ("spec-approved", "plan-review", "worktree-created", "dispatched", "review-round", "done", "blocked",
             "pr-opened", "decision-needed", "decision-made", "wait")
 FIELDS = ("issue", "pr", "branch", "worktree", "agent", "model", "tier", "round", "verdict", "text", "role",
-          "outcome", "reason")
+          "outcome", "reason", "tab")
 OUTCOMES = ("resumed", "fresh", "failed", "unknown")
 # Why an issue is deliberately waiting; any later progress event for the issue ends the wait (#33).
 WAIT_REASONS = ("resource", "peer", "environment", "auth", "rate-limit", "scheduled", "other")
@@ -759,9 +793,10 @@ The watcher sends each operator or info item once: its key is the log record's
 byte offset plus a hash of the line, so a replaced log cannot suppress a new
 alert at a reused offset. An item counts as sent only when the Herdr
 notification succeeded; a failed one is retried on the next poll, and ntfy is
-best effort. Sent keys and the run's tab live in
-<git common dir>/herd/attention-state.json, written atomically. One watcher
-runs per repository: a second one exits at once.
+best effort. Sent keys live in <git common dir>/herd/attention-state.json,
+written atomically. One watcher runs per repository: a second one exits at
+once. The run's tab is the one its `run-start` recorded (`--tab`), re-read on
+every poll, so one watcher follows successive runs.
 """
 from __future__ import annotations
 
@@ -852,7 +887,9 @@ def diagnose(events: list[dict], agents: list[dict] | None, now: datetime.dateti
                               e.get("text", ""), f"#{e.get('issue', '?')}"))
     if run and not ended and agents is not None and tab:
         held = {e.get("issue") for e in decisions}
-        flying = [i for i, e in latest_progress(run, DECISIONS).items() if e["kind"] in IN_FLIGHT and i not in held]
+        waiting = {i for i, e in latest_progress(run).items() if e["kind"] == "wait"}
+        flying = [i for i, e in latest_progress(run, DECISIONS + ("wait",)).items()
+                  if e["kind"] in IN_FLIGHT and i not in held and i not in waiting]
         mine = [a for a in agents if a.get("tab_id") == tab]
         quiet = age_minutes(run[-1], now)
         if flying and quiet >= stall_after and not any(a.get("agent_status") in ("working", "unknown", "blocked")
@@ -884,13 +921,19 @@ def ntfy_sink(url: str):
     return send
 
 
+def run_tab(events: list[dict]) -> str | None:
+    """The Herdr tab the current run recorded at run-start (`runlog.py add run-start --tab ...`)."""
+    run = runlog.latest(events)
+    return run[0].get("tab") if run else None
+
+
 def state_path(repo: pathlib.Path) -> pathlib.Path:
     return git_common_dir(repo) / "herd" / "attention-state.json"
 
 
 def load_state(repo: pathlib.Path) -> dict:
     p = state_path(repo)
-    return json.loads(p.read_text()) if p.exists() else {"sent": [], "tab": None}
+    return json.loads(p.read_text()) if p.exists() else {"sent": []}
 
 
 def save_state(repo: pathlib.Path, state: dict) -> None:
@@ -920,8 +963,8 @@ def watch_once(repo: pathlib.Path, agents: list[dict] | None, now: datetime.date
     """Send every operator/info item not sent before; return what was sent. `sink` is primary: an item
     counts as sent only when it returns True. `extra` sinks are best effort."""
     state = load_state(repo)
-    tab = tab or state.get("tab")
-    items = diagnose(read_events(runlog.log_path(repo)), agents, now, tab=tab, stall_after=stall_after,
+    events = read_events(runlog.log_path(repo))
+    items = diagnose(events, agents, now, tab=tab or run_tab(events), stall_after=stall_after,
                      overdue_after=overdue_after)
     sent = set(state["sent"])
     new = [i for i in items if i["audience"] != "lead" and i["key"] not in sent]
@@ -939,12 +982,13 @@ def watch_once(repo: pathlib.Path, agents: list[dict] | None, now: datetime.date
                     s(title, body, sound)
                 except Exception as exc:  # optional push never stops the watcher
                     print(f"ntfy failed: {exc}", file=sys.stderr)
-    if delivered or tab != state.get("tab"):
-        save_state(repo, {"sent": sorted(sent | {i["key"] for i in delivered}), "tab": tab})
+    if delivered:
+        save_state(repo, {"sent": sorted(sent | {i["key"] for i in delivered})})
     return delivered
 
 
-def monitor(events: list[dict], agents: list[dict] | None, now: datetime.datetime, *, tab: str | None) -> list[str]:
+def monitor(events: list[dict], agents: list[dict] | None, now: datetime.datetime, *, tab: str | None,
+            stall_after: float = STALL_MINUTES, overdue_after: float = OVERDUE_MINUTES) -> list[str]:
     """The text monitor: every agent, every issue of the latest run, what the lead owes, what needs the operator.
     Data no producer supplies yet (binding provenance until #38) is shown as unknown, never guessed."""
     run = runlog.latest(events)
@@ -964,7 +1008,7 @@ def monitor(events: list[dict], agents: list[dict] | None, now: datetime.datetim
         wait = f" [waiting: {e.get('reason')}]" if e["kind"] == "wait" else ""
         where = f" · {worktrees[issue]}" if issue in worktrees else ""
         lines.append(f"  #{issue} {runlog.describe(e)}{wait} ({int(age_minutes(e, now))}m ago){where}")
-    items = diagnose(events, agents, now, tab=tab)
+    items = diagnose(events, agents, now, tab=tab, stall_after=stall_after, overdue_after=overdue_after)
     lines.append("LEAD")
     lines += [f"  {i['title']}: {i['body']}" for i in items if i["audience"] == "lead"] or ["  nothing"]
     lines.append("NEEDS YOU")
@@ -988,9 +1032,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("cmd", choices=("scan", "watch", "monitor"))
     ap.add_argument("--repo", default=".")
-    ap.add_argument("--tab", default=None,
-                    help="the run's Herdr tab (watch: default $HERDR_TAB_ID, recorded for the others; "
-                         "scan/monitor: default the watcher's recorded tab)")
+    ap.add_argument("--tab", default=None, help="override the run's Herdr tab (default: the tab the current "
+                                                  "run recorded at run-start, re-read on every poll)")
     ap.add_argument("--interval", type=float, default=30)
     ap.add_argument("--stall", type=float, default=STALL_MINUTES)
     ap.add_argument("--overdue", type=float, default=OVERDUE_MINUTES)
@@ -1000,31 +1043,31 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     repo = pathlib.Path(a.repo)
     if a.cmd == "watch":
-        tab = a.tab or os.environ.get("HERDR_TAB_ID")
         with single_watcher(repo) as mine:
             if not mine:
                 print("a watcher is already running for this repository")
                 return 0
             while True:
                 now = datetime.datetime.now(datetime.timezone.utc)
-                for i in watch_once(repo, herdr_agents(), now, sink=herdr_sink, tab=tab,
+                for i in watch_once(repo, herdr_agents(), now, sink=herdr_sink, tab=a.tab,
                                     extra=[ntfy_sink(a.ntfy)] if a.ntfy else [], stall_after=a.stall,
                                     overdue_after=a.overdue):
                     print(f"{now.isoformat(timespec='seconds')} sent {i['kind']}: {i['title']}", flush=True)
                 if a.once:
                     return 0
                 time.sleep(a.interval)
-    tab = a.tab or load_state(repo).get("tab")
     while True:
         now = datetime.datetime.now(datetime.timezone.utc)
         events = read_events(runlog.log_path(repo))
+        tab = a.tab or run_tab(events)
         if a.cmd == "scan":
             items = diagnose(events, herdr_agents(), now, tab=tab, stall_after=a.stall, overdue_after=a.overdue)
             print(json.dumps(items, indent=2) if a.json else
                   "\n".join(f"{i['audience']:<8} {i['kind']:<10} {i['title']}: {i['body']}" for i in items))
             return 0
         print("" if a.once else "\033[2J\033[H", end="")
-        print("\n".join(monitor(events, herdr_agents(), now, tab=tab)))
+        print("\n".join(monitor(events, herdr_agents(), now, tab=tab, stall_after=a.stall,
+                                overdue_after=a.overdue)))
         if a.once:
             return 0
         time.sleep(a.interval)
@@ -1034,7 +1077,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **I4** `skill/SKILL.md` — the lead starts the watcher; waits; the operator's monitor
+- [ ] **I4** `skill/SKILL.md` — run-start records the tab; the watcher; waits; the monitor
 
 Find this exact text (it occurs exactly once):
 
@@ -1049,7 +1092,8 @@ Replace it with exactly:
 ```python
 ## Monitoring
 
-At `run-start`, the lead starts the attention watcher as a background task:
+At `run-start`, recorded with the run's tab (`runlog.py add run-start --tab
+"$HERDR_TAB_ID" ...`), the lead starts the attention watcher as a background task:
 `python3 <herd>/tools/attention.py watch --repo <repo>` (add `--ntfy <url>` to
 also push to a phone; a second watcher for the same repo exits at once). It
 raises a Herdr notification once per open decision, permission dialog,
@@ -1059,16 +1103,16 @@ an issue is deliberately waiting, say so with `runlog.py add wait --issue
 <id> --reason resource|peer|environment|auth|rate-limit|scheduled|other`, so
 it is not read as a stall. The operator's view of every agent and issue is
 `python3 <herd>/tools/attention.py monitor --repo <repo>`, run in any pane;
-it uses the run tab the watcher recorded (#33, #34).
+both read the current run's tab from its `run-start` (#33, #34).
 
 The backgrounded prompt/wait notifications are the primary wake signal.
 ```
 
 ## 3. Gates
 
-- Full suite at the base (`feat/32-run-recovery`): `248 passed`. After: `294 passed` (41 in `tests/test_attention.py` with parametrized cases, 4 new in `tests/test_runlog.py`, 1 new skill-text test). ~8 s.
+- Full suite at the base (`feat/32-run-recovery`): `248 passed`. After: `297 passed` (44 in `tests/test_attention.py` with parametrized cases, 4 new in `tests/test_runlog.py`, 1 new skill-text test). ~8 s.
 - `ruff check tools tests` → `All checks passed!`; `openspec validate attention` valid.
-- Live checks (lead-owned, at final review; the lead ran them in pre-execution on 2026-09-27): `attention.py watch --repo <scratch repo with one decision> --tab <tab> --once` shows one Herdr notification (`shown: true`) and records it; a second run sends nothing. `attention.py monitor --repo <herd> --once` prints AGENTS / ISSUES / LEAD / NEEDS YOU from the real run. ntfy delivery is unverified.
+- Live checks (lead-owned, at final review; run by the lead in pre-execution on 2026-09-27): `attention.py watch --repo <scratch repo with one decision> --tab <tab> --once` shows one Herdr notification (`shown: true`) and records it; a second run sends nothing. `attention.py monitor --repo <herd> --once` prints AGENTS / ISSUES / LEAD / NEEDS YOU from the real run. ntfy delivery is unverified.
 
 ## 4. Mutations
 
@@ -1137,13 +1181,13 @@ Killer: `tests/test_attention.py::test_new_ready_prs_are_batched_into_one_notifi
 - [ ] **M5** in `tools/attention.py`: replace
 
 ```python
-e["kind"] in IN_FLIGHT and i not in held]
+and i not in held and i not in waiting]
 ```
 
 with
 
 ```python
-e["kind"] in IN_FLIGHT]
+and i not in waiting]
 ```
 
 Killer: `tests/test_attention.py::test_a_held_issue_suppresses_only_the_stall_alarm`
@@ -1221,13 +1265,13 @@ Killer: `tests/test_attention.py::test_a_worker_block_becomes_overdue_for_the_le
 - [ ] **M11** in `tools/attention.py`: replace
 
 ```python
-latest_progress(run, DECISIONS).items()
+latest_progress(run, DECISIONS + ("wait",)).items()
 ```
 
 with
 
 ```python
-latest_progress(run).items()
+latest_progress(run, ("wait",)).items()
 ```
 
 Killer: `tests/test_attention.py::test_answering_a_hold_makes_unfinished_work_eligible_for_a_stall_again`
@@ -1241,7 +1285,8 @@ Killer: `tests/test_attention.py::test_answering_a_hold_makes_unfinished_work_el
 with
 
 ```python
-    if run and not ended:
+    agents = agents or []
+    if run and not ended and tab:
 ```
 
 Killer: `tests/test_attention.py::test_a_failed_agent_observation_claims_nothing_about_who_is_working`
@@ -1303,3 +1348,31 @@ with
 ```
 
 Killer: `tests/test_runlog.py::test_a_second_open_decision_for_one_issue_is_refused_even_across_runs`
+
+- [ ] **M17** in `tools/attention.py`: replace
+
+```python
+        waiting = {i for i, e in latest_progress(run).items() if e["kind"] == "wait"}
+```
+
+with
+
+```python
+        waiting = {i for i, e in latest_progress(run, DECISIONS).items() if e["kind"] == "wait"}
+```
+
+Killer: `tests/test_attention.py::test_a_decision_after_a_wait_ends_the_wait`
+
+- [ ] **M18** in `tools/attention.py`: replace
+
+```python
+        tab = a.tab or run_tab(events)
+```
+
+with
+
+```python
+        tab = a.tab
+```
+
+Killer: `tests/test_attention.py::test_each_run_brings_its_own_tab_and_the_monitor_follows_it`

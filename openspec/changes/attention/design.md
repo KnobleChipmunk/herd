@@ -29,6 +29,18 @@ shown item is recorded; a dropped one is retried on the next poll.
 unknown run tab disables the stall claim; decisions and PRs, which come from
 the log alone, still alert.
 
+**The run's tab belongs to the run.** `run-start` records `--tab`; the watcher
+and monitor re-read it from the current run on every poll, so one long-lived
+watcher follows successive runs, and a run without a recorded tab claims no
+stall.
+
+**Lead rulings on plan review round 1 (in the run log).** F1 NARROWED: waits
+are a run-log `wait` kind with a closed reason set, ended by the issue's next
+progress event (a decision included); idle capacity is already not a stall.
+F2 NARROWED: the monitor shows `binding: unknown` until #38 supplies it. F5
+NARROWED: one open decision per issue is enforced at record time; pre-existing
+duplicates keep any-later-answer resolution.
+
 ## Rejected
 
 - A pane per watcher: adds a seat for a script (team design §2: the watcher is

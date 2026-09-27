@@ -15,7 +15,7 @@ The attention rules SHALL raise operator items for open decisions from any run, 
 The rules SHALL report a stalled run only when work is in flight, no agent in the run's tab is working, unknown or blocked, the log has been quiet for the stall window, and the run is open; an issue with an open decision is held and never raises a stall.
 
 #### Scenario: A quiet run with nobody working
-- **WHEN** an issue's latest progress is in flight, every agent in the tab is idle, and the last event is older than 20 minutes
+- **WHEN** an issue's latest work event (ignoring decisions and waits) is in flight, it has no open decision or active wait, every agent in the run's tab is idle, and the last log event is older than 20 minutes
 - **THEN** an operator item `Run may be stalled` names the issue
 
 #### Scenario: A held issue
@@ -57,7 +57,7 @@ The watcher SHALL send each operator or informational item once across restarts,
 - **THEN** the new event is sent
 
 ### Requirement: The monitor
-The monitor SHALL list every agent in the workspace with its activity and role (or `unknown`), mark agents outside the run's tab, list each issue's latest progress with its age, and list what needs the operator.
+The monitor SHALL list every agent in the workspace with its pane, activity, role or `unassociated`, and binding (`unknown` until #38), mark agents outside the run's tab, show the observation time, list each issue's latest progress with its age and worktree, and list what the lead owes (LEAD) and what needs the operator (NEEDS YOU), using the same thresholds as `scan`.
 
 #### Scenario: A mixed workspace
 - **WHEN** agents run in the run's tab and another tab
