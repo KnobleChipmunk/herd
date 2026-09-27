@@ -1,6 +1,6 @@
 # Proposal: full suite re-run after every fold
 
-Status: open
+Status: accepted
 
 ## Class
 

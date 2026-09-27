@@ -1,6 +1,6 @@
 # Proposal: herdr --wait returns on acknowledgment, not idle
 
-Status: open
+Status: accepted
 
 ## Class
 
