@@ -241,6 +241,56 @@ def test_a_role_left_empty_in_the_recommendations_still_allows_typed_setup(capsy
     assert doc["roles"]["lead"] == {"harness": "claude", "model": "opus"}
     assert "lead: no recommendation for the installed harnesses (unknown)" in capsys.readouterr().out
 
+
+# --- build review #39 round 1 -------------------------------------------------
+
+def test_a_bad_entry_is_left_out_while_valid_entries_are_still_offered(capsys):
+    recs = {"version": 1, "roles": {"lead": [
+        {"harness": "claude", "model": "x", "source": "observed", "date": "2026-09-27"},
+        {"harness": "claude", "model": "y", "reason": "r", "source": "observed", "date": "2026-09-27"}]}}
+    ask = scripted("1", "claude sonnet", "claude fable", "claude fable", "n")
+    doc = setup.assisted(recs, which=only("claude"), existing=None, ask=ask, today=TODAY)
+    assert doc["roles"]["lead"] == {"harness": "claude", "model": "y"}
+    assert "recommendation lead 1 left out" in capsys.readouterr().out
+
+
+def test_from_example_does_not_even_ask_when_the_file_exists(tmp_path):
+    target = tmp_path / "bindings.yaml"
+    target.write_text("keep me")
+
+    def never(prompt):
+        raise AssertionError(f"prompted: {prompt}")
+
+    assert setup.from_example(target, ask=never) == 1
+    assert target.read_text() == "keep me"
+
+
+def test_an_entry_without_a_date_is_left_out_without_crashing(capsys):
+    recs = {"version": 1, "roles": {"lead": [
+        {"harness": "claude", "model": "x", "reason": "r", "source": "observed"},
+        {"harness": "claude", "model": "y", "reason": "r", "source": "observed", "date": "2026-09-27"}]}}
+    ask = scripted("1", "claude sonnet", "claude fable", "claude fable", "n")
+    doc = setup.assisted(recs, which=only("claude"), existing=None, ask=ask, today=TODAY)
+    assert doc["roles"]["lead"] == {"harness": "claude", "model": "y"}
+    assert "recommendation lead 1 left out" in capsys.readouterr().out
+
+
+def test_from_example_creates_the_target_directory_after_confirmation(tmp_path):
+    target = tmp_path / "herd" / "bindings.yaml"
+    assert setup.from_example(target, ask=scripted("y")) == 0
+    assert bindings.load(target)["roles"]["builder"]["harness"] == "pi"
+
+
+def test_from_example_never_clobbers_a_file_created_during_confirmation(tmp_path):
+    target = tmp_path / "bindings.yaml"
+
+    def ask(prompt):
+        target.write_text("keep me")
+        return "y"
+
+    assert setup.from_example(target, ask=ask) == 1
+    assert target.read_text() == "keep me"
+
 ```
 
 - [ ] **T2** `tests/test_skill_text.py` — the sweep names herd setup
@@ -345,6 +395,7 @@ RECOMMENDATIONS = HERE / "skill" / "recommendations.yaml"
 EXAMPLE = HERE / "skill" / "profiles" / "example-claude-codex-pi.yaml"
 REQUIRED_ROLES = ("lead", "builder", "plan_reviewer", "build_reviewer")
 SOURCES = ("official", "preference", "observed")
+DOC_ERRORS = ("the recommendations file must be a mapping", "unsupported or missing version", "roles must be a mapping")
 STALE_DAYS = 180
 CONSENT = ("Allow one short diagnostic request per selected binding during setup and future preflight checks? "
            "These may consume quota or incur charges. [y/N] ")
@@ -426,15 +477,30 @@ def binding_problems(role: str, b: dict) -> list[str]:
     return bindings.validate({"version": bindings.VERSION, "roles": {role: b}})
 
 
+def entry_problems(role: str, e: dict) -> list[str]:
+    """The provenance problems of one recommendation entry, from validate_recommendations."""
+    prefix = f"{role} 1: "
+    return [p[len(prefix):] for p in validate_recommendations({"version": 1, "roles": {role: [e]}})
+            if p.startswith(prefix)]
+
+
 def usable_offers(role: str, recs: dict, pool: list[str], *, today: datetime.date) -> list[dict]:
-    """Offers whose binding #38 accepts; an invalid entry is left out, with a visible reason."""
+    """Offers whose provenance is complete and whose binding #38 accepts; an invalid entry is left out, with a visible reason."""
     out = []
-    for n, o in enumerate(offers(role, recs, pool, today=today), 1):
-        problems = binding_problems(role, binding_of(o))
+    entries = (recs.get("roles") or {}).get(role) or []  # a role left empty (`lead:`) has no recommendations
+    for n, e in enumerate(entries, 1):  # validate before reading any key: one bad entry must not hide the rest
+        if not isinstance(e, dict):
+            problems, offered = ["an entry must be a mapping"], False
+        else:
+            problems = entry_problems(role, e)
+            offered = not problems and e["harness"] in pool
+            if offered:
+                age = (today - datetime.date.fromisoformat(str(e["date"]))).days
+                problems = binding_problems(role, binding_of({**e, "stale": age > STALE_DAYS}))
         if problems:
             print(f"  (recommendation {role} {n} left out: {'; '.join(problems)})")
-        else:
-            out.append(o)
+        elif offered:  # an entry for an uninstalled harness is simply not offered; not an error
+            out.append({**e, "stale": age > STALE_DAYS})
     return out
 
 
@@ -470,7 +536,7 @@ def assisted(recs: dict, *, which=shutil.which, existing: dict | None, ask=input
         print("no supported harness (claude, codex, pi) is installed: install one, then run setup again")
         return None
     rec_errors = validate_recommendations(recs)
-    if rec_errors:
+    if any(e in DOC_ERRORS for e in rec_errors):  # a malformed document has no recommendations; a bad entry is left out by usable_offers
         print("recommendations ignored: " + "; ".join(rec_errors))
         recs = {"version": 1, "roles": {}}
     for role in REQUIRED_ROLES:
@@ -568,7 +634,16 @@ def from_example(target: pathlib.Path, *, ask=input) -> int:
     if ask(f"Copy this example profile to {target}? [y/N] ").strip().lower() != "y":
         print("not copied")
         return 1
-    write(target, EXAMPLE.read_text())
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(".tmp")
+    tmp.write_text(EXAMPLE.read_text())
+    try:
+        os.link(tmp, target)  # no-clobber: a file that appears while the prompt is open is left untouched
+    except FileExistsError:
+        tmp.unlink()
+        print(f"{target} exists; not overwriting it")
+        return 1
+    tmp.unlink()
     print(f"saved {target}")
     return 0
 
@@ -610,7 +685,7 @@ Replace it with exactly:
 
 ## 3. Gates
 
-- Full suite at the base (`feat/38-bindings` after its build): `401 passed`. After: `430 passed` (28 in `tests/test_setup.py` with parametrized cases, 1 new skill-text test). ~8 s.
+- Full suite at the base (`feat/38-bindings` after its build): `401 passed`. After: `435 passed` (33 in `tests/test_setup.py` with parametrized cases, 1 new skill-text test). ~8 s.
 - `ruff check tools tests` → `All checks passed!`; `openspec validate setup` valid.
 - Live (lead-owned): `python3 tools/herdsetup.py validate --file skill/profiles/example-claude-codex-pi.yaml` → `ok`.
 
@@ -744,7 +819,7 @@ with
 
 ```
 
-Killer: `tests/test_setup.py::test_from_example_copies_the_profile_only_after_confirmation`
+Killer: `tests/test_setup.py::test_from_example_does_not_even_ask_when_the_file_exists`
 
 - [ ] **M11** in `tools/herdsetup.py`: replace
 
