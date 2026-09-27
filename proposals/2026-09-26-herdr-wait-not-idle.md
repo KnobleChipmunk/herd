@@ -1,6 +1,6 @@
 # Proposal: herdr --wait returns on acknowledgment, not idle
 
-Status: open
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/53
 
 ## Class
 

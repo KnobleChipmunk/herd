@@ -1,6 +1,6 @@
 # Proposal: full suite re-run after every fold
 
-Status: open
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/54
 
 ## Class
 
