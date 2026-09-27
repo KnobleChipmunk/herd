@@ -335,7 +335,10 @@ them.
   still stop and ask, review or no review: a push to `main` or to any
   branch this loop did not create, a force-push, and anything else in the
   operator's Hard Constraints.
-- **The full suite runs once per build, by the builder (#330).** Its
+- **The full suite runs once per build-state, by the builder (#330):** after the
+  last fold, never while one is pending; `python3 <herd>/tools/gates.py suite-ok
+  --issue <id>` says whether it may run (`fold start|done` marks a fold; a
+  ruling's reference mutation reopens it once with `--ruling`). Its
   literal tail lives in the handoff (the lead's pre-execution run of the
   suite is separate and earlier). codex_review and the lead's final pass
   run the touched test files plus the grep gate; either re-runs the full

@@ -3,6 +3,8 @@
 usage: gates.py match "<expected line>" [<output file>]   (default: stdin)
        gates.py manifest <worktree> <base ref> [--allowed <file>]
        gates.py count "<text>" <path>... [--include GLOB] [--regex]
+       gates.py fold start|done --issue N [--repo PATH]
+       gates.py suite-ok --issue N [--ruling] [--repo PATH]
 
 match   compares the last non-blank line of the output with the expected
         line: pytest and mypy lines by their counts (pytest's warnings and
@@ -14,11 +16,18 @@ count   prints how many lines contain <text> (literal unless --regex) in
         the files named, a directory counting only its *.py files (or
         --include) outside __pycache__. Zero is an answer: always exits 0,
         and it counts the same in bash and zsh, which grep -c does not.
+fold    marks a fold of the issue's spec as started or done.
+suite-ok says whether the full suite may run now: refused (exit 2) while a
+        fold is pending, warned (exit 1) when it already ran for this
+        build-state, allowed (exit 0, and recorded) otherwise. --ruling
+        reopens it once for a ruling's reference mutation (accepted proposal
+        2026-09-25-full-suite-rerun-after-fold).
 """
 from __future__ import annotations
 
 import argparse
 import fnmatch
+import json
 import pathlib
 import re
 import subprocess
@@ -105,6 +114,44 @@ def count(text: str, paths: list[pathlib.Path], include: str = "*.py", regex: bo
     return total
 
 
+def folds_path(repo: pathlib.Path) -> pathlib.Path:
+    from herdtool import git_common_dir
+    return git_common_dir(repo) / "herd" / "folds.json"
+
+
+def fold_state(repo: pathlib.Path) -> dict:
+    p = folds_path(repo)
+    return json.loads(p.read_text()) if p.exists() else {}
+
+
+def save_fold_state(repo: pathlib.Path, state: dict) -> None:
+    p = folds_path(repo)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(state, indent=2))
+
+
+def fold(repo: pathlib.Path, issue: str, what: str) -> None:
+    state = fold_state(repo)
+    entry = state.setdefault(issue, {"pending": False, "suite_runs": 0})
+    entry["pending"] = what == "start"
+    if what == "done":
+        entry["suite_runs"] = 0  # a new build-state
+    save_fold_state(repo, state)
+
+
+def suite_ok(repo: pathlib.Path, issue: str, ruling: bool) -> tuple[int, str]:
+    state = fold_state(repo)
+    entry = state.setdefault(issue, {"pending": False, "suite_runs": 0})
+    if entry["pending"]:
+        return 2, f"a fold of #{issue} is pending: finish it (gates.py fold done) before the full suite"
+    if entry["suite_runs"] >= 1 + int(ruling):
+        return 1, (f"the full suite already ran for this build-state of #{issue}; run it again only after a fold "
+                   f"or, once, for a ruling's reference mutation (--ruling)")
+    entry["suite_runs"] += 1
+    save_fold_state(repo, state)
+    return 0, f"ok: full suite run {entry['suite_runs']} for this build-state of #{issue}"
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -120,7 +167,23 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("paths", nargs="+", type=pathlib.Path)
     c.add_argument("--include", default="*.py")
     c.add_argument("--regex", action="store_true")
+    fo = sub.add_parser("fold")
+    fo.add_argument("what", choices=("start", "done"))
+    fo.add_argument("--issue", required=True)
+    fo.add_argument("--repo", default=".")
+    so = sub.add_parser("suite-ok")
+    so.add_argument("--issue", required=True)
+    so.add_argument("--ruling", action="store_true")
+    so.add_argument("--repo", default=".")
     a = ap.parse_args(argv)
+    if a.cmd == "fold":
+        fold(pathlib.Path(a.repo), a.issue, a.what)
+        print(f"fold of #{a.issue}: {a.what}")
+        return 0
+    if a.cmd == "suite-ok":
+        rc, message = suite_ok(pathlib.Path(a.repo), a.issue, a.ruling)
+        print(message)
+        return rc
     if a.cmd == "count":
         print(count(a.text, a.paths, a.include, a.regex))
         return 0
