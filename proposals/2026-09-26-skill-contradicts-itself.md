@@ -28,3 +28,6 @@ their first action, so it is the operator's to apply; no tool in
 No `skill-contradicts-itself` events in the next run's friction lines; plan
 reviewers cite a single, unambiguous execution boundary and no retro again
 proposes removing the plan reviewer from the full-suite paragraph.
+
+## Grading
+- 2026-09-27: held

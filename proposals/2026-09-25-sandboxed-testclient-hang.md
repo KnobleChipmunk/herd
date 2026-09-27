@@ -27,3 +27,6 @@ reviewer brief for a TestClient repo carries the known-good execution mode and
 the touched suite completes in the first escalated attempt.
 2026-09-26: missed — five events in the #459 run (459-3b ~6 min, 459-3e ~5 min,
 459-3f ~7 min, 459-3g ~4 min, 459-4 ~100 s hang); class now at 7 events.
+
+## Grading
+- 2026-09-27: held

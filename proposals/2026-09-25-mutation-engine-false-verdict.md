@@ -26,3 +26,6 @@ change the skill wording.
 No `mutation-engine-false-verdict` events in the next run's friction lines; the
 regression suite passes on a fresh clone before the run starts.
 2026-09-26: held
+
+## Grading
+- 2026-09-27: held

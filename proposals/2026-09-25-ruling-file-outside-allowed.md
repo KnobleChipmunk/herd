@@ -25,3 +25,6 @@ No `ruling-file-outside-allowed` events in the next run's friction lines; a
 lead ruling left in the worktree produces no spurious `OUTSIDE ALLOWED` finding
 and no review round is spent on it.
 2026-09-26: held
+
+## Grading
+- 2026-09-27: held

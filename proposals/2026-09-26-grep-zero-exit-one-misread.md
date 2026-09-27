@@ -27,3 +27,6 @@ stop being builder-local problems.
 No `grep-zero-exit-one-misread` events in the next run's friction lines;
 briefing grep gates appear as a single generated command and zero-count
 results appear as `0` with exit 0.
+
+## Grading
+- 2026-09-27: held

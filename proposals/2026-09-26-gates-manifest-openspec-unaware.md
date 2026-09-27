@@ -26,3 +26,6 @@ truth. Add a manifest test asserting a file under `openspec/changes/` and an
 No `gates-manifest-openspec-unaware` events in the next run's friction
 lines; a build with an OpenSpec change directory produces a clean manifest
 and the reviewer prompt's exclusion sentence matches the tool's exclusions.
+
+## Grading
+- 2026-09-27: held

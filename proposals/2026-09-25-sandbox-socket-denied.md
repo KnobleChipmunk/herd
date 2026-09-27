@@ -26,3 +26,6 @@ round signoff command succeeds on its first attempt.
 2026-09-26: missed — two events in the #459 run (459-1: herdr signoff to w1:p2D
 failed in the sandbox with PermissionDenied, escalated retry succeeded; 459-4:
 same signoff command failed with Operation not permitted after REVIEW CLEAN).
+
+## Grading
+- 2026-09-27: held

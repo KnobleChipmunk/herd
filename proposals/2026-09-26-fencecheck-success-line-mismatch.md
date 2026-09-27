@@ -26,3 +26,6 @@ sentinel must live in code, not prose.
 No `fencecheck-success-line-mismatch` events in the next run's friction
 lines; reviewer transcripts show `FENCES OK (n steps)` accepted as success
 with no spurious finding raised against it.
+
+## Grading
+- 2026-09-27: held
