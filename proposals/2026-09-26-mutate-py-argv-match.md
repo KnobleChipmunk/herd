@@ -24,3 +24,6 @@ by executable + module/argument shape, not by substring scan of argv.
 
 No `mutate-py-argv-match` events in the next run's friction lines; the
 regression suite passes on a fresh clone before the run starts.
+
+## Grading
+- 2026-09-27: held
