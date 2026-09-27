@@ -18,14 +18,17 @@ choice worth recording. Gates are measured on this branch at the spec commit.
 - [x] 1.4 Plan review round 1 folds: the concurrent-start test collects every
   worker's result through futures and checks 8 results, 7 refusals naming the
   winning run; a lock regression (round 2 replaced the timing-based race test
-  with `test_every_append_holds_the_lock_from_its_read_to_its_write`, plus
-  `test_an_append_gives_up_on_a_lock_held_too_long`);
+  with `test_every_append_holds_the_lock_from_its_read_to_its_write`; round 3
+  added `test_an_append_waits_out_brief_contention` and
+  `test_an_append_gives_up_at_the_lock_deadline_not_before` on a controlled
+  clock, a 60 s per-test alarm fixture, and daemon threads for the
+  eight-thread test);
   three-run fixed-clock ids `base`, `base+2`, `base+3`; sessions accepted for
   all four outcomes and refused for each missing field; an earlier or
   other-issue `decision-made` does not resolve a decision; `status` does not
   render sessions.
-- [x] 1.5 RED after the round-2 fold: `python3 -m pytest -q tests/test_runlog.py
-  tests/test_skill_text.py` → `22 failed, 32 passed`. Round 2 also corrected
+- [x] 1.5 RED after the round-3 fold: `python3 -m pytest -q tests/test_runlog.py
+  tests/test_skill_text.py` → `23 failed, 32 passed`. Round 2 also corrected
   the cross-run test's #427 assertion to the latest progress event
   (`#427 decision-made another issue's answer`). Four new tests pass
   already, on purpose, as guards: `test_an_event_after_run_end_still_belongs_to_the_ended_run`,
@@ -34,7 +37,7 @@ choice worth recording. Gates are measured on this branch at the spec commit.
   behavior that must survive), and `test_a_decision_made_in_a_later_run_resolves_the_earlier_one`
   (it only gains force once cross-run carry exists). The split depends on the
   clock: `test_a_run_start_after_run_end_opens_a_new_run` can pass on the old
-  code if its two starts straddle a second, which gives `21 failed, 33 passed`
+  code if its two starts straddle a second, which gives `22 failed, 33 passed`
   instead.
 
 ## 2. Implementation — `tools/runlog.py`
@@ -47,10 +50,14 @@ choice worth recording. Gates are measured on this branch at the spec commit.
   `choices=("resumed", "fresh", "failed", "unknown")`. Not a PROGRESS kind.
 - [ ] 2.3 Add `open_run(events) -> dict | None`: the latest `run-start` if no
   `run-end` follows it, else None.
-- [ ] 2.4 Add `LOCK_TIMEOUT = 30` (seconds) and a context manager
+- [ ] 2.4 Add `LOCK_TIMEOUT = 30`, `LOCK_POLL = 0.01` (seconds),
+  `_monotonic = time.monotonic`, `_sleep = time.sleep`, and a context manager
   `locked(path)` on `path.with_name("run-log.lock")`: create the directory if
-  missing, open the lock file, poll `fcntl.flock(LOCK_EX | LOCK_NB)` every
-  10 ms until `LOCK_TIMEOUT`, then raise `TimeoutError`. Never unlink the lock
+  missing, open the lock file, set `deadline = _monotonic() + LOCK_TIMEOUT`
+  once, then loop: try `fcntl.flock(LOCK_EX | LOCK_NB)`; on `BlockingIOError`
+  raise `TimeoutError` if `_monotonic() >= deadline`, else `_sleep(LOCK_POLL)`.
+  Read the two constants and call the two seams through the module at call
+  time. Never unlink the lock
   file. Split today's write into an internal `_write(path, event)` that
   assumes the lock is held. `append` and `close` call `locked`, `read_file`
   and `_write` through the module (the lock test patches all three) and read
@@ -99,13 +106,30 @@ choice worth recording. Gates are measured on this branch at the spec commit.
 ## 4. Gates
 
 - [ ] 4.1 `python3 -m pytest -q` → all pass. Baseline on `main` at the spec
-  commit: `221 passed`. Expected after the build: `221 + 26 new = 247 passed`
-  (19 test functions in the new block expanding to 25 cases: `close` with no
+  commit: `221 passed`. Expected after the build: `221 + 27 new = 248 passed`
+  (20 test functions in the new block expanding to 26 cases: `close` with no
   open run ×2, session outcomes ×4, missing session fields ×3, the rest ×1
-  each; `lock_is_held` is a helper, not a test; plus 1 skill-text test; the
-  edited two-run and cross-run tests are not new). `--co` at the round-2 fold:
-  `247 tests collected`. Wall time about 8 s.
+  each; `lock_is_held` and the `bounded` fixture are not tests; plus 1
+  skill-text test; the edited two-run and cross-run tests are not new). `--co`
+  at the round-3 fold: `248 tests collected`. Wall time about 8 s.
 - [ ] 4.2 `ruff check tools tests` → `All checks passed!` (the baseline).
 - [ ] 4.3 mypy: not installed on this machine and not configured in
   `pyproject.toml`. Skipped, and the handoff says so.
 - [ ] 4.4 `openspec validate run-recovery` passes.
+
+## 5. Mutations (the builder drives them after implementing)
+
+Written in `tools/mutate.py`'s format against the implemented code, then driven
+with `python3 tools/mutate.py openspec/changes/run-recovery/tasks.md <tree>`.
+Each must be KILLED by the named test, inside the 60 s alarm.
+
+- M1 `locked` uses blocking `LOCK_EX` → `test_an_append_waits_out_brief_contention` (alarm)
+- M2 only `run-start` and `close` take the lock → `test_every_append_holds_the_lock_from_its_read_to_its_write`
+- M3 one `LOCK_NB` attempt, no retry → `test_an_append_waits_out_brief_contention`
+- M4 deadline recomputed inside the loop → `test_an_append_gives_up_at_the_lock_deadline_not_before`
+- M5 `close` calls the public `append` (nested lock) → `test_every_append_holds_the_lock_from_its_read_to_its_write`
+- M6 the id suffix is always `+2` → `test_run_ids_are_unique_even_when_the_clock_repeats`
+- M7 any `decision-made` for the issue resolves, ignoring order → `test_a_decision_made_before_the_question_does_not_resolve_it`
+- M8 `session` added to PROGRESS → `test_status_does_not_render_session_events`
+- M9 `run-start` skips the open-run check → `test_a_second_run_start_is_refused_while_a_run_is_open`
+

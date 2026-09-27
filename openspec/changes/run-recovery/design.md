@@ -45,13 +45,26 @@ enter → read (held) → write (held) → exit for an ordinary append, `run-end
 module, and each reads the log once.
 
 **The lock gives up after `LOCK_TIMEOUT` = 30 s (plan review round 2, finding
-4).** `locked` polls `LOCK_NB` every 10 ms. When the timeout passes, it raises
-`TimeoutError`, which `append` and `close` turn into the refusal `run log is
-locked: <lock path>` (exit 2 on the CLI). A holder stuck for 30 s on a
-millisecond operation is a fault. With a blocking lock, a nested-lock bug would
-hang the lead and the test suite. With a bounded lock, it fails with a
-message. The eight-thread start test stays in process: any deadlock now ends
-in a refusal within the timeout, and the test fails on it.
+4).** `locked` computes `deadline = _monotonic() + LOCK_TIMEOUT` once, then
+tries `LOCK_NB`. On `BlockingIOError` it checks `_monotonic()` against the
+deadline and otherwise sleeps `LOCK_POLL` (10 ms) through `_sleep`. When the
+deadline passes, it raises `TimeoutError`, which `append` and `close` turn into
+the refusal `run log is locked: <lock path>` (exit 2 on the CLI). A holder
+stuck for 30 s on a millisecond operation is a fault; brief contention is
+waited out. `_monotonic`/`_sleep` are module seams (`time.monotonic`,
+`time.sleep`), and `LOCK_TIMEOUT`/`LOCK_POLL` are read at call time, so tests
+drive retry and expiry on a controlled clock.
+
+**The timeout bounds correct code; the tests bound regressions (plan review
+round 3, finding 1).** A regression to blocking `LOCK_EX`, or a deadline reset
+on every retry, would defeat the production timeout, so the tests do not rely
+on it. An autouse fixture in `tests/test_runlog.py` arms a 60 s `SIGALRM` per
+test, whose handler raises into the main thread, even through a blocked
+`flock`. The eight-thread start test uses daemon threads with a 45 s join and
+asserts none is alive, so a hung worker fails the test without blocking
+interpreter exit. The expiry test's fake sleep fails after 100 polls, so a
+deadline that never arrives fails instead of spinning. The alarm uses
+`SIGALRM`, which is POSIX-only, matching `fcntl`.
 
 **Unique ids without a new format.** `run-start` uses microsecond timestamps,
 and `run` still equals that event's `ts`, so `librarian.py` and the existing

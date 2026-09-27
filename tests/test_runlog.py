@@ -174,6 +174,21 @@ def test_spec_approved_records_the_tier(repo_with_worktree):
 
 # --- #32: run recovery -----------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def bounded():
+    """Fail, rather than hang, any test in this file that runs over 60 s (plan review #32 round 3)."""
+    import signal
+
+    def expire(signum, frame):
+        raise TimeoutError("test ran over 60 s: a run-log lock is probably stuck")
+
+    previous = signal.signal(signal.SIGALRM, expire)
+    signal.setitimer(signal.ITIMER_REAL, 60)
+    yield
+    signal.setitimer(signal.ITIMER_REAL, 0)
+    signal.signal(signal.SIGALRM, previous)
+
+
 def close(repo, *args: str) -> int:
     return runlog.main(["close", *args, "--repo", str(repo)])
 
@@ -257,18 +272,25 @@ def test_run_start_ids_carry_microseconds(repo_with_worktree):
 
 def test_concurrent_run_starts_admit_exactly_one(repo_with_worktree):
     import threading
-    from concurrent.futures import ThreadPoolExecutor
 
     main, _ = repo_with_worktree
     barrier = threading.Barrier(8, timeout=10)
+    results: list = []
 
     def start():
-        barrier.wait()
-        return runlog.append(main, "run-start", {})
+        try:
+            barrier.wait()
+            results.append(runlog.append(main, "run-start", {}))
+        except BaseException as exc:  # surfaced by the assertion below, never swallowed
+            results.append(exc)
 
-    with ThreadPoolExecutor(8) as pool:
-        futures = [pool.submit(start) for _ in range(8)]
-        results = [f.result(timeout=30) for f in futures]  # re-raises any worker's exception
+    threads = [threading.Thread(target=start, daemon=True) for _ in range(8)]  # daemon: a hung one cannot block exit
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=45)
+    assert not any(t.is_alive() for t in threads), "a run-start never returned"
+    assert not [r for r in results if isinstance(r, BaseException)], results
     logged = events(main)
     assert [e["kind"] for e in logged] == ["run-start"]
     refusals = [r for r in results if r is not None]
@@ -326,18 +348,54 @@ def test_every_append_holds_the_lock_from_its_read_to_its_write(repo_with_worktr
         assert seen == one_acquisition
 
 
-def test_an_append_gives_up_on_a_lock_held_too_long(repo_with_worktree, monkeypatch, capsys):
-    """A stuck holder fails the append with a message instead of hanging the lead or the test suite."""
+def test_an_append_waits_out_brief_contention(repo_with_worktree, monkeypatch):
+    """Plan review #32 round 3: a held lock is retried, not refused on the first try."""
     import fcntl
 
     main, _ = repo_with_worktree
     add(main, "run-start")
-    monkeypatch.setattr(runlog, "LOCK_TIMEOUT", 0.2)
+    lock = runlog.log_path(main).with_name("run-log.lock")
+    sleeps: list = []
+    with open(lock, "a") as holder:
+        fcntl.flock(holder, fcntl.LOCK_EX)
+
+        def release_on_first_sleep(seconds):
+            sleeps.append(seconds)
+            if len(sleeps) == 1:
+                fcntl.flock(holder, fcntl.LOCK_UN)
+
+        monkeypatch.setattr(runlog, "_sleep", release_on_first_sleep)
+        assert add(main, "note", "--text", "after the wait") == 0
+    assert len(sleeps) == 1
+    assert [e["kind"] for e in events(main)] == ["run-start", "note"]
+
+
+def test_an_append_gives_up_at_the_lock_deadline_not_before(repo_with_worktree, monkeypatch, capsys):
+    """A stuck holder fails the append with a message at LOCK_TIMEOUT, measured on a controlled clock."""
+    import fcntl
+
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    monkeypatch.setattr(runlog, "LOCK_TIMEOUT", 0.25)
+    monkeypatch.setattr(runlog, "LOCK_POLL", 0.0625)
+    clock = {"now": 0.0, "sleeps": 0}
+
+    def fake_sleep(seconds):
+        clock["sleeps"] += 1
+        if clock["sleeps"] > 100:
+            raise AssertionError("still polling after 100 sleeps: the deadline never arrives")
+        clock["now"] += seconds
+
+    monkeypatch.setattr(runlog, "_monotonic", lambda: clock["now"])
+    monkeypatch.setattr(runlog, "_sleep", fake_sleep)
     lock = runlog.log_path(main).with_name("run-log.lock")
     with open(lock, "a") as holder:
         fcntl.flock(holder, fcntl.LOCK_EX)
-        assert add(main, "note", "--text", "x") == 2
-        assert close(main, "--reason", "x") == 2
+        for call in (lambda: add(main, "note", "--text", "x"), lambda: close(main, "--reason", "x")):
+            clock.update(now=0.0, sleeps=0)
+            assert call() == 2
+            assert 0.25 <= clock["now"] <= 0.25 + 0.0625
+            assert 3 <= clock["sleeps"] <= 5
     out = capsys.readouterr().out
     assert out.count(f"run log is locked: {lock}") == 2
     assert [e["kind"] for e in events(main)] == ["run-start"]
