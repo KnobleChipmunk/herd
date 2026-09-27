@@ -106,6 +106,26 @@ def test_only_drives_the_named_mutations(build):
     assert [ln.split(" ")[0] for ln in lines] == ["M2"]
 
 
+@pytest.mark.parametrize("worktree", [".", "./", "absolute"])
+def test_main_scratch_accepts_current_directory_and_preserves_source(build, monkeypatch, capsys, worktree):
+    tasks = build / "SCRATCH-tasks.md"
+    tasks.write_text(render_tasks())
+    calc = build / "src" / "calc.py"
+    before = calc.read_bytes()
+    stamp = calc.stat().st_mtime_ns
+    status = git("status", "--porcelain", cwd=build)
+    monkeypatch.chdir(build)
+    tree = str(build) if worktree == "absolute" else worktree
+
+    assert mutate.main([str(tasks), tree, "--only", "M1", "--scratch"]) == 0
+
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) == 1 and lines[0].startswith("M1 KILLED")
+    assert calc.read_bytes() == before
+    assert calc.stat().st_mtime_ns == stamp
+    assert git("status", "--porcelain", cwd=build) == status
+
+
 def test_refuses_while_pytest_runs_in_the_worktree(build):
     proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", "pytest"], cwd=build)
     try:
