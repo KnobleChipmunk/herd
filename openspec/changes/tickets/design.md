@@ -29,6 +29,11 @@ writes and sync before success; a newly created store also syncs its directory.
 
 ## Rejected
 
+- A verdict that stays NOT PASS after any earlier failed result (build review
+  round 1, finding 1; lead ruling): the verdict from latest check results is
+  deliberate — a re-check on a new candidate renews its evidence (QA card), and
+  the ticket history keeps every event.
+
 - SQLite (OpenRig's choice): a second storage format and a dependency on
   migrations, for a store with a few hundred lines per run.
 - GitHub issues as tickets: too heavy for internal review tasks; a GitHub issue
