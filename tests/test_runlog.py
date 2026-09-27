@@ -240,11 +240,12 @@ def test_run_ids_are_unique_even_when_the_clock_repeats(repo_with_worktree, monk
     main, _ = repo_with_worktree
     fixed = runlog.datetime.datetime(2026, 9, 27, 12, 0, 0, 123456, tzinfo=runlog.datetime.timezone.utc)
     monkeypatch.setattr(runlog, "now", lambda: fixed)
-    add(main, "run-start")
-    add(main, "run-end")
-    add(main, "run-start")
+    for _ in range(3):
+        add(main, "run-start")
+        add(main, "run-end")
+    base = fixed.isoformat(timespec="microseconds")
     starts = [e for e in events(main) if e["kind"] == "run-start"]
-    assert starts[0]["run"] != starts[1]["run"]
+    assert [s["run"] for s in starts] == [base, f"{base}+2", f"{base}+3"]
     assert all(s["run"] == s["ts"] for s in starts)
 
 
@@ -256,22 +257,52 @@ def test_run_start_ids_carry_microseconds(repo_with_worktree):
 
 def test_concurrent_run_starts_admit_exactly_one(repo_with_worktree):
     import threading
+    from concurrent.futures import ThreadPoolExecutor
 
     main, _ = repo_with_worktree
-    barrier = threading.Barrier(8)
-    results = []
+    barrier = threading.Barrier(8, timeout=10)
 
     def start():
         barrier.wait()
-        results.append(runlog.append(main, "run-start", {}))
+        return runlog.append(main, "run-start", {})
 
-    threads = [threading.Thread(target=start) for _ in range(8)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    assert results.count(None) == 1
-    assert [e["kind"] for e in events(main)] == ["run-start"]
+    with ThreadPoolExecutor(8) as pool:
+        futures = [pool.submit(start) for _ in range(8)]
+        results = [f.result(timeout=30) for f in futures]  # re-raises any worker's exception
+    logged = events(main)
+    assert [e["kind"] for e in logged] == ["run-start"]
+    refusals = [r for r in results if r is not None]
+    assert len(results) == 8 and results.count(None) == 1 and len(refusals) == 7
+    assert all(f"run {logged[0]['run']} is still open" in r and "runlog.py close --reason" in r for r in refusals)
+
+
+def test_an_append_that_read_the_log_before_a_close_cannot_land_in_the_next_run(repo_with_worktree, monkeypatch):
+    """Plan review #32 round 1, finding 1: every append holds the lock from reading the log to writing."""
+    import threading
+
+    main, _ = repo_with_worktree
+    add(main, "run-start", "--text", "A")
+    run_a = events(main)[0]["run"]
+    real_read_file = runlog.read_file
+    race: dict = {}
+
+    def racing_read_file(path):
+        out = real_read_file(path)
+        if not race:
+            race["thread"] = threading.Thread(target=lambda: race.update(
+                close=runlog.close(main, "crash"), start=runlog.append(main, "run-start", {"text": "B"})))
+            race["thread"].start()
+            race["thread"].join(timeout=0.5)  # unlocked, the close and B's start would land here
+        return out
+
+    monkeypatch.setattr(runlog, "read_file", racing_read_file)
+    assert add(main, "run-end") == 0
+    race["thread"].join(timeout=10)
+    logged = events(main)
+    assert [e["kind"] for e in logged] == ["run-start", "run-end", "run-start"]
+    assert logged[1]["run"] == run_a
+    assert "no open run" in race["close"] and race["start"] is None
+    assert runlog.open_run(real_read_file(runlog.log_path(main)))["run"] == logged[2]["run"]
 
 
 def test_status_keeps_a_decision_left_open_by_an_earlier_run(repo_with_worktree, capsys):
@@ -282,6 +313,7 @@ def test_status_keeps_a_decision_left_open_by_an_earlier_run(repo_with_worktree,
     add(main, "run-end")
     add(main, "run-start", "--text", "run B")
     add(main, "dispatched", "--issue", "427")
+    add(main, "decision-made", "--issue", "427", "--text", "another issue's answer")
     runlog.main(["status", "--repo", str(main)])
     out = capsys.readouterr().out
     assert f"OPEN decision #426: Raidbots as the source? (from run {run_a})" in out
@@ -309,19 +341,23 @@ def test_a_block_is_not_carried_into_the_next_run(repo_with_worktree, capsys):
     assert "OPEN blocked #421" not in capsys.readouterr().out
 
 
-def test_session_records_agent_role_and_outcome(repo_with_worktree):
+@pytest.mark.parametrize("outcome", ["resumed", "fresh", "failed", "unknown"])
+def test_session_records_agent_role_and_outcome(repo_with_worktree, outcome):
     main, _ = repo_with_worktree
     add(main, "run-start")
-    assert add(main, "session", "--agent", "pi_build", "--role", "builder", "--outcome", "resumed") == 0
+    assert add(main, "session", "--agent", "pi_build", "--role", "builder", "--outcome", outcome) == 0
     last = events(main)[-1]
-    assert (last["kind"], last["agent"], last["role"], last["outcome"]) == ("session", "pi_build", "builder", "resumed")
+    assert (last["kind"], last["agent"], last["role"], last["outcome"]) == ("session", "pi_build", "builder", outcome)
 
 
-def test_session_needs_a_role(repo_with_worktree, capsys):
+@pytest.mark.parametrize("drop", ["agent", "role", "outcome"])
+def test_session_needs_agent_role_and_outcome(repo_with_worktree, capsys, drop):
     main, _ = repo_with_worktree
     add(main, "run-start")
-    assert add(main, "session", "--agent", "pi_build", "--outcome", "fresh") == 2
-    assert "session needs --role" in capsys.readouterr().out
+    fields = {"agent": "pi_build", "role": "builder", "outcome": "fresh"}
+    del fields[drop]
+    assert add(main, "session", *[x for k, v in fields.items() for x in (f"--{k}", v)]) == 2
+    assert f"session needs --{drop}" in capsys.readouterr().out
     assert [e["kind"] for e in events(main)] == ["run-start"]
 
 
@@ -332,3 +368,24 @@ def test_session_outcome_must_be_one_of_four(repo_with_worktree, capsys):
         add(main, "session", "--agent", "pi_build", "--role", "builder", "--outcome", "maybe")
     assert "invalid choice: 'maybe'" in capsys.readouterr().err
     assert [e["kind"] for e in events(main)] == ["run-start"]
+
+
+def test_a_decision_made_before_the_question_does_not_resolve_it(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    add(main, "decision-made", "--issue", "426", "--text", "an older answer")
+    add(main, "run-end")
+    add(main, "run-start")
+    add(main, "decision-needed", "--issue", "426", "--text", "Raidbots as the source?")
+    runlog.main(["status", "--repo", str(main)])
+    assert "OPEN decision #426: Raidbots as the source?" in capsys.readouterr().out
+
+
+def test_status_does_not_render_session_events(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    add(main, "run-start")
+    add(main, "dispatched", "--issue", "421")
+    add(main, "session", "--issue", "421", "--agent", "pi_build", "--role", "builder", "--outcome", "resumed")
+    runlog.main(["status", "--repo", str(main)])
+    out = capsys.readouterr().out
+    assert "#421 dispatched" in out and "session" not in out

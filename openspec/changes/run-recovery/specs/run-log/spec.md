@@ -11,6 +11,10 @@ The run log SHALL refuse a `run-start` while the latest run has no `run-end`, an
 - **WHEN** several `run-start` calls race on a log with no open run
 - **THEN** exactly one succeeds and the rest are refused
 
+#### Scenario: An append that read the log before a close
+- **WHEN** an ordinary append has read the log while run A is open, and a `close` and a new `run-start` are attempted before it writes
+- **THEN** the append's line lands before the close is evaluated, it carries A's id, the close is refused as `no open run`, and the new run B stays open
+
 #### Scenario: A run-start after run-end
 - **WHEN** the latest run has a `run-end`
 - **THEN** `run-start` succeeds and opens a new run with a new id
@@ -51,15 +55,23 @@ Every `run-start` SHALL get a run id unused in the log, equal to its own `ts`.
 - **WHEN** run B records `decision-made` for #426
 - **THEN** `status` no longer lists #426 as open
 
+#### Scenario: Only a later answer for the same issue resolves
+- **WHEN** a `decision-made` for #426 comes before the `decision-needed`, or a `decision-made` is recorded for a different issue
+- **THEN** `status` still lists #426 as open
+
+#### Scenario: Sessions are not progress
+- **WHEN** a `session` event names an issue that has a progress event
+- **THEN** `status` shows the progress event and does not render the session
+
 ### Requirement: Session outcomes
 The run log SHALL record a `session` event with agent, logical role, and an outcome from `resumed | fresh | failed | unknown`.
 
 #### Scenario: A resumed builder
 - **WHEN** `add session --agent pi_build --role builder --outcome resumed` is called in an open run
-- **THEN** it exits 0 and the event carries agent, role and outcome
+- **THEN** it exits 0 and the event carries agent, role and outcome; each of the four outcomes is accepted
 
 #### Scenario: Invalid or missing fields
-- **WHEN** `--outcome` is not one of the four values, or `--role` is missing
+- **WHEN** `--outcome` is not one of the four values, or any of `--agent`, `--role`, `--outcome` is missing
 - **THEN** the call is refused and nothing is appended
 
 ### Requirement: Loop scope is stated

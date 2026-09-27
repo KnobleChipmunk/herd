@@ -20,11 +20,19 @@ librarian note after `run-end` (`tools/merge_stack.py:189`). Binding stays
 "latest `run-start`", unchanged. "Open" means only "no `run-end` after the latest
 `run-start`", and it gates only `run-start` and `close`.
 
-**Lock file, not a lock on the log.** `fcntl.flock` on
-`<git common dir>/herd/run-log.lock`, held while `run-start` or `close` reads the
-log and appends. Ordinary appends keep today's lock-free `O_APPEND` path. They
-never read-then-decide on open/closed state. `fcntl` is POSIX. herd requires
-Herdr, which runs on Linux and macOS, so this adds no new platform limit.
+**Every append takes the lock (plan review #32 round 1, finding 1).**
+`fcntl.flock` on `<git common dir>/herd/run-log.lock` is held by every append,
+from reading the log (to find the run) through writing the line. Locking only
+`run-start` and `close` leaves a race: an ordinary append that read run A, then
+paused while `close` and B's `run-start` landed, would write A's event after
+B's start, and a positional open-run check would then see B as ended. `close`
+writes through an internal helper while it already holds the lock, because a
+second `flock` from a separate `open()` in the same process blocks, so a nested
+call would deadlock. The lock file is never unlinked. Reads go through
+`runlog.read_file`, which the race regression test patches. `fcntl` is POSIX.
+herd requires Herdr, which runs on Linux and macOS, so this adds no new
+platform limit. Cost: one extra `open` + `flock` per append, on a log that
+gets a few hundred lines per run.
 
 **Unique ids without a new format.** `run-start` uses microsecond timestamps,
 and `run` still equals that event's `ts`, so `librarian.py` and the existing

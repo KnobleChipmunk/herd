@@ -20,8 +20,9 @@ would leak into everything built later:
 - New `runlog.py close --reason "<why>"` ends the open run after a crash with
   `run-end` text `closed: <why>`. Resuming a crashed run needs no command: the
   lead keeps appending to it.
-- The check and the append of `run-start` / `close` hold an exclusive lock, so
-  two concurrent starts cannot both succeed.
+- Every append holds an exclusive lock from reading the log to writing its
+  line, so two concurrent starts cannot both succeed and an append that read
+  the log before a `close` cannot land inside the next run.
 - Run ids are unique: `run-start` timestamps carry microseconds, and a clash
   with an existing id gets a numeric suffix. `run` still equals the
   `run-start` event's `ts`.
@@ -47,8 +48,10 @@ would leak into everything built later:
 - `tools/merge_stack.py:189`: after the run's PRs merge, merge_stack appends a
   `note` to the log. That happens after the lead's `run-end`, so an event
   after `run-end` must still be accepted and belong to the ended run.
-- `tests/test_runlog.py:59-61`: the only test that starts two runs in one
-  repo, with no `run-end` between them.
+- At baseline `b07145e`, `tests/test_runlog.py:59-61` was the only test that
+  started two runs in one repo, with no `run-end` between them. This change
+  inserts `run-end` at line 61 (the second start moves to line 62) and adds
+  the recovery cases.
 - `/home/tusk/projects/project-mera/.git/herd/run-log.jsonl` (the only real
   log): 4 `run-start`, 4 `run-end`, last marker `run-end`, no duplicate run
   ids, so the new refusal does not block it.
@@ -68,6 +71,11 @@ would leak into everything built later:
   live agent, and that agent is gone once its run ends.
 - `status` does not render `session` events. The monitor (#34) consumes them.
 - No schema version on log lines, and no migration of existing logs.
+- Roadmap row 0 also says "recovery carries the resolved binding". That part
+  is deferred: persisting the resolved binding belongs to #38 (U1 resolver),
+  and carrying it in recovery packets belongs to #40 (row C). This change
+  records only each session's agent, role, and outcome, so it completes
+  row 0 except for that clause.
 - DEVLOOP's other content (roles, stages, handoff payload) is unchanged.
 
 ## Impact
