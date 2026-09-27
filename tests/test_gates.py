@@ -181,3 +181,32 @@ def test_count_regex_is_opt_in(tmp_path):
     f = tmp_path / "a.py"
     f.write_text('group["difficulty"])\n')
     assert gates.count(r'group\["difficulty"\]\)', [f], regex=True) == 1
+
+
+# --- accepted proposal 2026-09-25-full-suite-rerun-after-fold --------------------
+
+def test_the_full_suite_is_refused_while_a_fold_is_pending(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    gates.main(["fold", "start", "--issue", "40", "--repo", str(main)])
+    assert gates.main(["suite-ok", "--issue", "40", "--repo", str(main)]) == 2
+    assert "a fold of #40 is pending" in capsys.readouterr().out
+    gates.main(["fold", "done", "--issue", "40", "--repo", str(main)])
+    assert gates.main(["suite-ok", "--issue", "40", "--repo", str(main)]) == 0
+
+
+def test_a_second_suite_run_in_one_build_state_is_warned_unless_a_ruling_reopens_it(repo_with_worktree, capsys):
+    main, _ = repo_with_worktree
+    assert gates.main(["suite-ok", "--issue", "40", "--repo", str(main)]) == 0
+    assert gates.main(["suite-ok", "--issue", "40", "--repo", str(main)]) == 1
+    assert "already ran for this build-state" in capsys.readouterr().out
+    assert gates.main(["suite-ok", "--issue", "40", "--ruling", "--repo", str(main)]) == 0
+    assert gates.main(["suite-ok", "--issue", "40", "--ruling", "--repo", str(main)]) == 1
+
+
+def test_a_finished_fold_starts_a_new_build_state(repo_with_worktree):
+    main, _ = repo_with_worktree
+    gates.main(["suite-ok", "--issue", "40", "--repo", str(main)])
+    gates.main(["fold", "start", "--issue", "40", "--repo", str(main)])
+    gates.main(["fold", "done", "--issue", "40", "--repo", str(main)])
+    assert gates.main(["suite-ok", "--issue", "40", "--repo", str(main)]) == 0
+    assert gates.main(["suite-ok", "--issue", "41", "--repo", str(main)]) == 0  # issues are independent
