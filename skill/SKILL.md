@@ -245,6 +245,8 @@ implementation reproduces passes tests AND mutations), challenge catalog
 membership / design conventions / boundary cases, check every text anchor
 resolves uniquely at HEAD, every gate is a measured literal with its
 baseline named, and blank-line separation is stated for every insert.
+Apply the authority-rule check in `skill/cards/plan-reviewer.md` whenever
+a rule is extracted, reformatted, or rewritten.
 Tell it where its line is: it may read files and git blobs, do its own
 arithmetic, inspect code, and project the fences onto the base in memory;
 it never applies the plan, imports the plan's code, or runs its tests or
