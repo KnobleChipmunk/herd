@@ -226,3 +226,19 @@ def test_plan_review_preserves_authorization_conditions():
     assert "cite an existing assertion" in card
     skill = (SKILL_DIR / "SKILL.md").read_text()
     assert "authority-rule check in `skill/cards/plan-reviewer.md`" in skill
+
+
+def test_plan_template_accounts_for_requirements_and_command_callers():
+    import yaml
+
+    config = yaml.safe_load((SKILL_DIR.parent / "openspec/config.yaml").read_text())
+    rules = " ".join(config["rules"]["tasks"])
+    for field in ("source section", "implementing step", "acceptance evidence", "linked deferral"):
+        assert field in rules
+    assert "every governing requirement" in rules
+    assert "every new command" in rules and "caller in the skill or a card" in rules
+    assert "against the issue and design" in rules and "Before fences are generated" in rules
+    card = (SKILL_DIR / "cards/plan-reviewer.md").read_text()
+    assert "requirement table" in card and "against the issue and design" in card
+    assert "every new command" in card and "caller in the skill or a card" in card
+    assert "requirement table from `openspec/config.yaml`" in (SKILL_DIR / "SKILL.md").read_text()

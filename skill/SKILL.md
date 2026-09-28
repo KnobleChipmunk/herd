@@ -289,6 +289,8 @@ structure only (#40).
   passes — and note validate is WEAKER than archive: a delta for a spec
   name with no file under `openspec/specs/` must be headed `## ADDED
   Requirements`, or the archive aborts later (#321).
+- Before generating fences, complete the requirement table from `openspec/config.yaml`
+  against the issue and design, including a skill/card caller for each new command.
 - **Pre-executes the spec before plan review (#321).** In a scratch
   worktree cut from HEAD: apply every tasks.md instruction literally (a
   script extracting the fences, then the anchored edits), observe RED,
