@@ -74,6 +74,11 @@ at run time:
 - **Build reviewer** pane: `mkbrief.py --reviewer`, default `codex_review`
   (the skill's Roster table).
 
+## Design references
+
+- [Herd on Orca: joint investigation](docs/orca-evaluation.md) — agreed assessment,
+  observed integration gaps, and criteria for a future pilot (2026-09-27).
+
 ## Tests
 
 ```bash
