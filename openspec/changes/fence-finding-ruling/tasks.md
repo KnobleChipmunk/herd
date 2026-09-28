@@ -9,7 +9,7 @@ Run `python3 -m pytest tests/test_mkbrief.py -q --no-header` after tests first: 
 After implementation run `python3 -m pytest -q` once and `ruff check tools tests` (baseline: All checks passed!).
 Type checking is not checked: no configured project command and python3 -m mypy --version reports No module named mypy. pytest-xdist is absent; run serially.
 Run `python3 tools/gates.py count 'FINDINGS: <n> (spec)' tools/mkbrief.py` (baseline 0; build 3).
-Run `python3 /home/tusk/projects/herd/tools/fencecheck.py openspec/changes/fence-finding-ruling/tasks.md .`: expected FENCES OK (11 steps), the 10 steps below.
+Run `python3 /home/tusk/projects/herd/tools/fencecheck.py openspec/changes/fence-finding-ruling/tasks.md .`: expected FENCES OK (11 steps), the 11 steps below.
 Run all section 3 mutations after GREEN; all five must be KILLED. Pre-execution observed M1 KILLED, M2 KILLED, M3 KILLED, M4 KILLED and M5 KILLED, each with FAILED tests/test_mkbrief.py::test_fence_owned_findings_block_in_the_same_review_round. Ruff: All checks passed! Fence parity: FENCES OK (11 steps). Touched GREEN: 26 passed in 0.54s. RED: 1 failed, 25 passed in 0.57s.
 
 ## 1. Tests first
