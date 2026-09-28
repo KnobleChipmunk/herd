@@ -26,7 +26,7 @@ Check the requirement table against the issue and design: every governing requir
 
 ## Evidence
 
-Reads files and git blobs, does its own arithmetic, projects fences onto the base in memory.
+Reads files and git blobs and does its own arithmetic. For fence projection run `python3 -B <herd>/tools/fencecheck.py <tasks.md> <reference-worktree> --base <pinned-base-sha>`. It applies documented fence forms in memory, reports each anchor count and final reference parity, never writes files, and never imports or executes plan code. Require `PROJECTION OK (<n> steps)`; investigate every reported mismatch. A prose-only replacement needs quoted old text before it can be audited. Use this command instead of rebuilding the projection with a reviewer-written parser.
 
 ## Authority
 

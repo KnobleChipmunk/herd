@@ -248,7 +248,8 @@ baseline named, and blank-line separation is stated for every insert.
 Apply the authority-rule check in `skill/cards/plan-reviewer.md` whenever
 a rule is extracted, reformatted, or rewritten.
 Tell it where its line is: it may read files and git blobs, do its own
-arithmetic, inspect code, and project the fences onto the base in memory;
+arithmetic, inspect code, and run the read-only fence
+projection command in `skill/cards/plan-reviewer.md` against the pinned base;
 it never applies the plan, imports the plan's code, or runs its tests or
 mutations. The lead's pre-execution is the execution evidence.
 Have it write findings to `PLAN-REVIEW-<id>-round-N.md` in the repo root

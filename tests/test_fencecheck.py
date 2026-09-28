@@ -144,3 +144,113 @@ def test_a_tasks_file_with_no_steps_is_an_error_not_a_pass(built, capsys):
 ])
 def test_forms_lists_only_the_sources_fence_could_have_rendered(rendered, sources):
     assert fencecheck.forms(rendered) == sources
+
+
+def test_projection_reports_each_anchor_and_final_parity_without_writing(built, monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("projection must not apply steps or load plan code")
+
+    monkeypatch.setattr(herdtool, "apply_step", forbidden)
+    monkeypatch.setattr(herdtool, "load", forbidden)
+    impl = [s for s in IMPL if not s.get("old_desc")]
+    text = render(impl=impl)
+    before = {str(p.relative_to(built)): p.read_bytes() for p in built.rglob("*") if p.is_file()}
+    lines, failed = fencecheck.project(text, BASE, built)
+    assert not failed
+    assert "T1 `tests/test_new.py`: anchors=n/a (new_file)" in lines
+    assert "I2 `src/append.py`: anchors=n/a (append)" in lines
+    assert "I3 `src/whole.py`: anchors=n/a (whole_file)" in lines
+    assert "T2 `src/replace.py`: anchors=1" in lines
+    assert "I4 `src/inline.py`: anchors=1" in lines
+    assert "I5 `src/anchor.py`: anchors=1" in lines
+    assert "PARITY `src/inline.py`: OK" in lines
+    assert len([line for line in lines if line.startswith("PARITY")]) == 7
+    assert before == {str(p.relative_to(built)): p.read_bytes() for p in built.rglob("*") if p.is_file()}
+    assert BASE["src/replace.py"] == "a = 1\nb = 2\nc = 3\n"
+
+
+def test_projection_handles_sequential_inline_replacements(tmp_path):
+    steps = [dict(kind="replace", path="x.py", old="one", new="two", why="first"),
+             dict(kind="replace", path="x.py", old="two", new="three", why="second")]
+    (tmp_path / "x.py").write_text("value = three + 1\n")
+    lines, failed = fencecheck.project(render(tests=[], impl=steps), {"x.py": "value = one + 1\n"}, tmp_path)
+    assert not failed
+    assert "I1 `x.py`: anchors=1" in lines and "I2 `x.py`: anchors=1" in lines
+    assert "PARITY `x.py`: OK" in lines
+
+
+@pytest.mark.parametrize("base,reason", [("wrong\n", "anchors=0"), ("old\nold\n", "anchors=2")])
+def test_projection_refuses_nonunique_anchors(tmp_path, base, reason):
+    step = dict(kind="replace", path="x.py", old="old\n", new="new\n", why="replace")
+    (tmp_path / "x.py").write_text(base.replace("old\n", "new\n", 1))
+    lines, failed = fencecheck.project(render(tests=[], impl=[step]), {"x.py": base}, tmp_path)
+    assert failed and any(reason in line for line in lines)
+
+
+@pytest.mark.parametrize("kind,base,reason", [
+    ("new_file", {"x.py": "old\n"}, "file already exists in base"),
+    ("whole_file", {}, "file missing from base"),
+    ("append", {"x.py": "old\n\n"}, "file end not a single newline"),
+])
+def test_projection_checks_file_preconditions(tmp_path, kind, base, reason):
+    step = dict(kind=kind, path="x.py", new="new\n", why="change")
+    (tmp_path / "x.py").write_text("new\n")
+    lines, failed = fencecheck.project(render(tests=[], impl=[step]), base, tmp_path)
+    assert failed and any(reason in line for line in lines)
+    assert f"I1 `x.py`: anchors=n/a ({kind})" in lines
+
+
+def test_projection_rejects_prose_only_replace(built):
+    lines, failed = fencecheck.project(render(), BASE, built)
+    assert failed and any("I4 `src/desc.py`: quoted old text required" == line for line in lines)
+
+
+def test_projection_detects_final_drift_and_missing_reference(tmp_path):
+    steps = [dict(kind="replace", path="x.py", old="old\n", new="new\n", why="replace"),
+             dict(kind="new_file", path="missing.py", new="body\n", why="create")]
+    (tmp_path / "x.py").write_text("new\nextra\n")
+    lines, failed = fencecheck.project(render(tests=[], impl=steps), {"x.py": "old\n"}, tmp_path)
+    assert failed
+    assert "PARITY `x.py`: DIFFERS" in lines
+    assert "PARITY `missing.py`: reference missing" in lines
+
+
+def test_projection_preserves_required_blank_line_forms(tmp_path):
+    step = dict(kind="insert_before", path="x.py", old="def f():\n", new="import os\n\n\n", why="insert")
+    (tmp_path / "x.py").write_text("import os\n\ndef f():\n    pass\n")
+    lines, failed = fencecheck.project(render(tests=[], impl=[step]), {"x.py": "def f():\n    pass\n"}, tmp_path)
+    assert failed and "PARITY `x.py`: DIFFERS" in lines
+
+
+def test_projection_cli_uses_pinned_git_blobs_without_writing(repo_with_worktree, capsys):
+    import subprocess
+
+    _, wt = repo_with_worktree
+    (wt / "x.py").write_text("old\n")
+    subprocess.run(["git", "add", "x.py"], cwd=wt, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base"], cwd=wt, check=True)
+    base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=wt, text=True).strip()
+    (wt / "x.py").write_text("new\n")
+    tasks = wt / "tasks.md"
+    tasks.write_text(render(tests=[], impl=[dict(kind="replace", path="x.py", old="old\n", new="new\n", why="replace")]))
+    before = {p: p.read_bytes() for p in (wt / "x.py", tasks)}
+    assert fencecheck.main([str(tasks), str(wt), "--base", base]) == 0
+    output = capsys.readouterr().out
+    assert "I1 `x.py`: anchors=1" in output and "PARITY `x.py`: OK" in output
+    assert output.rstrip().endswith("PROJECTION OK (1 steps)")
+    assert before == {p: p.read_bytes() for p in before}
+    for invalid in ("missing-ref", ""):
+        assert fencecheck.main([str(tasks), str(wt), "--base", invalid]) == 2
+        assert "invalid base" in capsys.readouterr().out
+    tasks.write_text("# no steps\n")
+    assert fencecheck.main([str(tasks), str(wt), "--base", base]) == 2
+    assert "no T/I steps" in capsys.readouterr().out
+
+
+def test_plan_review_names_the_read_only_projection_command():
+    root = pathlib.Path(fencecheck.__file__).resolve().parent.parent
+    card = (root / "skill/cards/plan-reviewer.md").read_text()
+    assert "--base <pinned-base-sha>" in card
+    assert "in memory" in card and "never writes files" in card
+    assert "never imports or executes plan code" in card
+    assert "projection command in `skill/cards/plan-reviewer.md`" in (root / "skill/SKILL.md").read_text()
