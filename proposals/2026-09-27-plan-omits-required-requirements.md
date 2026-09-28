@@ -1,6 +1,6 @@
 # Proposal: plan review passes while the plan omits governing requirements
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/69
 
 ## Class
 

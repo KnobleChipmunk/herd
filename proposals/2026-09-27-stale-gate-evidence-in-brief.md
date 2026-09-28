@@ -1,6 +1,6 @@
 # Proposal: brief gate summary reports stale or pending results
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/67
 
 ## Class
 
