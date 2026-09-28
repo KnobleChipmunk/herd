@@ -5,10 +5,19 @@ import pytest
 import mkbrief
 
 
+def write_tasks(worktree, body="# Plan\n\n## 0. Gates\n\n510 passed\nM1–M5\nFENCES OK (11 steps)\n\n## 1. Tests first\n"):
+    path = worktree / "openspec/changes/fix-x/tasks.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body)
+    return path
+
+
 def brief(repo_with_worktree, **overrides):
     main, wt = repo_with_worktree
+    if not (wt / "openspec/changes/fix-x/tasks.md").exists():
+        write_tasks(wt)
     args = dict(id="42", worktree=wt, branch="fix/42-x", base="main", change="fix-x",
-                gates="GATES\n", allowed="  - src/x.py", python="/py/bin/python",
+                allowed="  - src/x.py", python="/py/bin/python",
                 lead_pane="w9:p9Z", reviewer="codex_review", has_xdist=False)
     args.update(overrides)
     return main, wt, mkbrief.build_briefing(**args), mkbrief.build_reviewer_prompt(**args)
@@ -82,11 +91,10 @@ def test_main_writes_both_files(repo_with_worktree, tmp_path, monkeypatch):
     _, wt = repo_with_worktree
     monkeypatch.setenv("HERDR_PANE_ID", "w5:p5A")
     monkeypatch.setenv("HERD_PYTHON", sys.executable)
-    gates = tmp_path / "gates.txt"
-    gates.write_text("G\n")
+    write_tasks(wt)
     allowed = tmp_path / "allowed.txt"
     allowed.write_text("  - src/x.py\n")
-    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(gates), str(allowed)])
+    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(allowed)])
     assert "w5:p5A" in (wt / "BUILD-BRIEFING-42.md").read_text()
     assert "codex_review" in (wt / "BUILD-BRIEFING-42.md").read_text()
     assert (wt / "CODEX-PROMPT-42.md").exists()
@@ -131,11 +139,10 @@ def test_main_writes_the_allowed_file_with_the_spec_directory(repo_with_worktree
     _, wt = repo_with_worktree
     monkeypatch.setenv("HERDR_PANE_ID", "w5:p5A")
     monkeypatch.setenv("HERD_PYTHON", sys.executable)
-    gates_file = tmp_path / "gates.txt"
-    gates_file.write_text("G\n")
+    write_tasks(wt)
     allowed = tmp_path / "allowed.txt"
     allowed.write_text("  - `src/x.py`\n")
-    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(gates_file), str(allowed)])
+    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(allowed)])
     assert (wt / "ALLOWED-42.txt").read_text() == "  - `src/x.py`\n  - `openspec/changes/fix-x/`\n"
 
 
@@ -205,3 +212,53 @@ def test_fence_owned_findings_block_in_the_same_review_round(repo_with_worktree)
     assert "without waiting for a fold" in recovery
     assert "the lead installs any regenerated test fences" in recovery
     assert "re-apply the affected implementation files" in recovery
+
+
+def test_main_regenerates_suite_mutation_and_fence_literals_from_tasks(repo_with_worktree, tmp_path, monkeypatch):
+    _, wt = repo_with_worktree
+    monkeypatch.setenv("HERD_PYTHON", sys.executable)
+    tasks = write_tasks(wt)
+    allowed = tmp_path / "allowed.txt"
+    allowed.write_text("tools/x.py\n")
+    args = ["42", str(wt), "fix/42-x", "main", "fix-x", str(allowed), "--lead-pane", "w5:p5A"]
+    mkbrief.main(args)
+    first = (wt / "BUILD-BRIEFING-42.md").read_text()
+    for literal in ("510 passed", "M1–M5", "FENCES OK (11 steps)"):
+        assert literal in first
+    tasks.write_text(tasks.read_text().replace("510 passed", "512 passed").replace("M1–M5", "M1–M7")
+                     .replace("11 steps", "13 steps"))
+    mkbrief.main(args)
+    second = (wt / "BUILD-BRIEFING-42.md").read_text()
+    for old, new in (("510 passed", "512 passed"), ("M1–M5", "M1–M7"), ("11 steps", "13 steps")):
+        assert old not in second and new in second
+    before = {p: p.read_bytes() for p in wt.glob("*-42.*")}
+    tasks.write_text("# No gates\n")
+    with pytest.raises(SystemExit, match="exactly one nonempty.*Gates"):
+        mkbrief.main(args)
+    assert {p: p.read_bytes() for p in before} == before
+
+
+@pytest.mark.parametrize("body", ["# no section\n", "## 0. Gates\n\n## 1. Tests\n",
+                                   "## 0. Gates\nA\n## 0. Gates\nB\n", "    ## 0. Gates\nbody\n"])
+def test_invalid_task_gates_fail_clearly(repo_with_worktree, body):
+    _, wt = repo_with_worktree
+    write_tasks(wt, body)
+    with pytest.raises(SystemExit, match="exactly one nonempty.*Gates"):
+        mkbrief.task_gates(wt, "fix-x")
+
+
+def test_missing_tasks_names_the_unreadable_file(repo_with_worktree):
+    _, wt = repo_with_worktree
+    with pytest.raises(SystemExit, match="cannot read.*tasks.md"):
+        mkbrief.task_gates(wt, "fix-x")
+
+
+def test_gate_section_respects_fenced_headings_and_stops_at_next_section(repo_with_worktree):
+    _, wt = repo_with_worktree
+    body = ("# Plan\n````python\n## 0. Gates\nfalse\n````\n## 0. Gates\n"
+            "510 passed\n```text\n## example output\n```\n## 1. Tests\nnot a gate\n"
+            "~~~text\n## 0. Gates\nfalse again\n~~~\n")
+    write_tasks(wt, body)
+    assert mkbrief.task_gates(wt, "fix-x") == "510 passed\n```text\n## example output\n```\n"
+    write_tasks(wt, "## 0. Gates\n \n    python3 -m pytest  \n\t\n## 1. Tests\n")
+    assert mkbrief.task_gates(wt, "fix-x") == "    python3 -m pytest  \n"

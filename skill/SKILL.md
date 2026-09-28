@@ -343,7 +343,14 @@ structure only (#40).
   make (a product call, a behaviour the guild would notice), and anything
   in the operator gates below. With the user present, say which one and
   wait. Unattended, park that issue and carry on (see the sweep).
-- Creates the build worktree, writes the briefing, prompts `pi_build`.
+- Creates the build worktree and generates the briefing after APPROVE with
+  `python3 <herd>/tools/mkbrief.py <id> <worktree> <branch> <pinned-base-sha>
+  <change-name> <allowed-files-file> --lead-pane <live-pane-id>`, then prompts
+  `pi_build`. Put every measured gate, including the full-suite count,
+  mutation names and fence step count, in tasks.md's single `## 0. Gates`
+  section. The generator copies that section; it takes no separate gate file.
+  After any spec amendment, regenerate the briefing from tasks.md before
+  dispatching the next round. Keep the original base SHA pinned.
 - Rules on escalations (BLOCKED from the builder). A ruling is one message
   to the builder, and a sentence the builder must relay to the reviewer.
 - When the builder reports the reviewer green: runs the `reviewer` skill,
@@ -622,7 +629,8 @@ For an accepted fence change, the lead marks `gates.py fold start --issue <id>`,
 folds the accepted fix into the reference,
 re-runs the affected tests and mutations, regenerates the fences, verifies
 byte parity, installs any regenerated test fences in the build worktree,
-then marks `gates.py fold done --issue <id>`. The builder
+regenerates the briefing from the amended tasks.md (`mkbrief.py`, same pinned
+base SHA), then marks `gates.py fold done --issue <id>`. The builder
 re-applies the affected implementation files, re-runs all gates (including the full suite once
 for the new build-state after `gates.py suite-ok --issue <id>`), updates the
 handoff and resumes review within the cap authorized by the lead ruling. A pending reference fold prevents REVIEW CLEAN and DONE.
