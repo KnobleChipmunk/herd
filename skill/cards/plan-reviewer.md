@@ -20,6 +20,8 @@ Every spec; on the small tier one round, on the full tier until APPROVE.
 
 Spends effort on what execution cannot catch: re-derive fixture arithmetic, challenge design conventions and boundary cases, check that every text anchor resolves once, and that every gate is a measured literal with its baseline.
 
+When a rule is extracted, reformatted, or rewritten, compare its actor, action, scope, and authorization condition against the source skill. Check tightened prohibitions as well as relaxed permissions. Require a focused assertion of the surviving authorization condition before approving the plan; cite an existing assertion when it already covers the rewritten rule.
+
 ## Evidence
 
 Reads files and git blobs, does its own arithmetic, projects fences onto the base in memory.

@@ -217,3 +217,12 @@ def test_every_evaluator_card_states_the_same_hard_independence_rule():
         text = (SKILL_DIR / "cards" / c).read_text()
         assert "must not be an author of what it judges" in text and "fresh context" in text
 
+
+def test_plan_review_preserves_authorization_conditions():
+    card = (SKILL_DIR / "cards" / "plan-reviewer.md").read_text()
+    assert "compare its actor, action, scope, and authorization condition against the source skill" in card
+    assert "tightened prohibitions" in card and "relaxed permissions" in card
+    assert "focused assertion" in card and "surviving authorization condition" in card
+    assert "cite an existing assertion" in card
+    skill = (SKILL_DIR / "SKILL.md").read_text()
+    assert "authority-rule check in `skill/cards/plan-reviewer.md`" in skill
