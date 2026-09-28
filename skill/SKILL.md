@@ -411,7 +411,9 @@ gate), then the mutation drives. Writes `HANDOFF-<id>.md`. Then:
 1. Prompts `codex_review` with the worktree path, spec path, handoff path,
    round number, and the sentinel contract (via the sed'd per-round
    prompt file). `--wait --timeout 540000`, re-waiting on timeout.
-2. Reads the review file; fixes every CONFIRMED finding; re-runs ALL
+2. Reads the review file; on `FINDINGS: <n> (spec)` records friction and
+   sends BLOCKED in that round (see Rulings); otherwise fixes every
+   CONFIRMED finding; re-runs ALL
    gates; updates the handoff; sends the next round.
 3. Repeats until the reviewer writes `REVIEW CLEAN`. Cap **2 rounds**
    (+1 on a ruling); at the cap it sends the lead `BLOCKED:` with the open
@@ -427,8 +429,9 @@ against the branch base named in its prompt, runs `tools/fencecheck.py`
 runs the **touched** test
 files itself (not the full suite — the handoff carries that tail
 verbatim), reports only CONFIRMED defects with file:line and an exact
-fix, writes `REVIEW-<id>-round-N.md`, ends with `FINDINGS: <n>` or
-`REVIEW CLEAN`. A clean round still lists what it ran and what it checked
+fix, writes `REVIEW-<id>-round-N.md`, ends with `FINDINGS: <n>`,
+`FINDINGS: <n> (spec)` when any unresolved confirmed finding is in a byte-exact
+fence (see Rulings), or `REVIEW CLEAN`. A clean round still lists what it ran and what it checked
 (commands + last lines) — a file that is only the sentinel is not
 evidence (#330). It talks only to the builder, and contacts the lead only to
 sign off: `REVIEW CLEAN for <id> after N rounds`.
@@ -444,7 +447,7 @@ lead:  pick + tier → measure gates → spec (text anchors)
      → post the spec summary AND dispatch, same turn: worktree + briefing → prompt pi_build
        (prerequisite found mid-review? carve it out, loop it first, stack the branch)
 pi_build:  tests red → impl → gates → mutations → HANDOFF → review round 1
-codex_review: REVIEW-round-1 (FINDINGS: n)   ┐
+codex_review: REVIEW-round-1 (FINDINGS: n; spec finding → builder BLOCKED → lead ruling)   ┐
 pi_build:  fix → gates → HANDOFF → round 2   ┘ … until REVIEW CLEAN (cap 2, +1 on ruling)
 codex_review: "REVIEW CLEAN" → lead;  pi_build: "DONE: …" → lead
 lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
@@ -607,6 +610,22 @@ models do this): read its pane, answer the question it got stuck on,
 re-prompt.
 
 ## Rulings
+
+**Finding in a byte-exact fence.** The build reviewer tags each such confirmed
+finding "in the fence", keeps it unresolved (never FOLDED), and ends the round
+with `FINDINGS: <n> (spec)`, counting all unresolved confirmed findings.
+The builder records friction and sends BLOCKED in that same round, without
+editing the fence or spec. If the lead rejects the finding, the builder passes
+the ruling to the next review without waiting for a fold, preserves the
+unchanged build-state evidence, and records the ruling in the handoff.
+For an accepted fence change, the lead marks `gates.py fold start --issue <id>`,
+folds the accepted fix into the reference,
+re-runs the affected tests and mutations, regenerates the fences, verifies
+byte parity, installs any regenerated test fences in the build worktree,
+then marks `gates.py fold done --issue <id>`. The builder
+re-applies the affected implementation files, re-runs all gates (including the full suite once
+for the new build-state after `gates.py suite-ok --issue <id>`), updates the
+handoff and resumes review within the cap authorized by the lead ruling. A pending reference fold prevents REVIEW CLEAN and DONE.
 
 The lead rules when: the reviewer proposes work outside the spec's Non-goals;
 the builder is at the cap; the builder asks. A ruling names the finding,

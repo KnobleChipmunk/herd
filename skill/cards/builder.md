@@ -18,7 +18,7 @@ The lead's dispatch prompt pointing at the briefing.
 
 ## Scope
 
-Only the worktree and the briefing's allowed files. Tests first (apply the T steps, observe RED), then the I steps, then every gate, then the mutation drives. The full suite runs once, after all edits.
+Only the worktree and the briefing's allowed files. Tests first (apply the T steps, observe RED), then the I steps, then every gate, then the mutation drives. The full suite runs once per build-state after that state's edits, including after an accepted reference fold.
 
 ## Evidence
 
@@ -26,8 +26,8 @@ Literal command lines and their last lines, in the handoff. A number is never es
 
 ## Authority
 
-Sends review rounds to the build reviewer; fixes every CONFIRMED finding and re-runs all gates; cap 2 rounds, +1 on a lead ruling. At the cap: `BLOCKED:` to the lead with the open findings. On `REVIEW CLEAN`: `DONE: build for <id> — reviewer clean after N rounds — handoff at <path>`.
+Sends review rounds to the build reviewer; fixes every CONFIRMED finding and re-runs all gates; cap 2 rounds, +1 on a lead ruling. A CONFIRMED finding that requires deviating from a byte-exact fence is not builder-fixable; record friction and report it for a lead ruling in the same round. Do not edit the fence or the spec. At the cap: `BLOCKED:` to the lead with the open findings. On `REVIEW CLEAN`: `DONE: build for <id> — reviewer clean after N rounds — handoff at <path>`.
 
 ## Exclusions
 
-Never commits, pushes, or leaves the worktree; never edits a test after the tests-first step or loosens an assertion; contacts the lead only with BLOCKED or DONE.
+Never commits, pushes, or leaves the worktree; never edits a test after the tests-first step or loosens an assertion (the lead installs verified regenerated test fences after a ruling); contacts the lead only with BLOCKED or DONE.
