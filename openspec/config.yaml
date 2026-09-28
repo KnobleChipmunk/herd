@@ -30,3 +30,9 @@ schema: spec-driven
 #     archive:
 #       guidance:
 #         - Summarize the archive outcome before finishing
+
+rules:
+  tasks:
+    - Before fences are generated, add a requirement table with one row for every governing requirement, naming its source section, implementing step and acceptance evidence, or a linked deferral.
+    - Check the table against the issue and design before pre-execution and the first independent review; tests alone do not establish coverage.
+    - For every new command, name its caller in the skill or a card in the table's acceptance evidence.
