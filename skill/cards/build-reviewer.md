@@ -11,7 +11,8 @@ The spec, the handoff, and the candidate diff against the base its prompt names.
 ## Outputs
 
 `REVIEW-<id>-round-N.md`, opening with a `Candidate: <commit or tree>` line
-(`team.py gate review-file` checks it) and ending `FINDINGS: <n>` or `REVIEW CLEAN`.
+(`team.py gate review-file` checks it) and ending `FINDINGS: <n>`, `FINDINGS: <n> (spec)` when any
+unresolved confirmed finding is in a byte-exact fence, or `REVIEW CLEAN`.
 
 ## Activation
 

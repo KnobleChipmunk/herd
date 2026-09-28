@@ -184,3 +184,24 @@ def test_a_codex_reviewer_runs_tests_and_herdr_outside_its_sandbox_from_the_firs
 def test_a_claude_reviewer_gets_no_codex_sandbox_rule(repo_with_worktree):
     _, _, _, prompt = brief(repo_with_worktree, reviewer="claude_review")
     assert mkbrief.CODEX_SANDBOX not in prompt
+
+
+def test_fence_owned_findings_block_in_the_same_review_round(repo_with_worktree):
+    _, _, briefing, prompt = brief(repo_with_worktree)
+    assert "FINDINGS: <n> (spec)" in prompt
+    assert 'tag it "in the fence"' in prompt
+    assert "never mark it FOLDED" in prompt
+    assert "unresolved findings prevent REVIEW CLEAN" in prompt
+    assert "FINDINGS: <n> (spec)" in briefing
+    assert "send BLOCKED to the lead in the same round" in briefing
+    assert "Do not edit the fence or the spec" in briefing
+    recovery = briefing.split("Wait for the lead", 1)[1].split("Otherwise", 1)[0]
+    assert "re-run ALL gates" in recovery
+    assert "update the handoff" in recovery
+    assert "send the next round" in recovery
+    assert "once per build-state" in briefing
+    assert "If the lead accepts a fence change" in recovery
+    assert "If the lead rejects the finding" in recovery
+    assert "without waiting for a fold" in recovery
+    assert "the lead installs any regenerated test fences" in recovery
+    assert "re-apply the affected implementation files" in recovery

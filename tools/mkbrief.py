@@ -106,7 +106,7 @@ byte for byte.
 
 1. Self-review, 10 lines or fewer: what changed, biggest risk, where to look first.
 2. RED tail and GREEN tail (literal).
-3. Full-suite tail, VERBATIM (you run the full suite exactly once).
+3. Full-suite tail, VERBATIM (you run the full suite once per build-state).
 4. ruff and mypy last lines; every grep gate's output; the fence check's output —
    `python3 {FENCECHECK} openspec/changes/{change}/tasks.md .` must print
    `FENCES OK (<n> steps)`; any other line is a deviation to fix before review.
@@ -126,7 +126,16 @@ Review round N (N = 1, 2): make the per-round prompt, then send it.
 (Replace the N in the sed and the file names with the round number. If the
 lead gave you a ruling, put its sentence in place of `none`.) The command
 returns only when the reviewer has settled; a Herdr wait timeout is treated
-as "still working" and waited out. Then read `REVIEW-{id}-round-N.md`. Fix every CONFIRMED finding,
+as "still working" and waited out. Then read `REVIEW-{id}-round-N.md`. If it ends with `FINDINGS: <n> (spec)`,
+record friction and send BLOCKED to the lead in the same round. Do not edit the fence or the spec.
+Wait for the lead ruling. If the lead accepts a fence change, wait for the verified reference fold
+and regenerated fences. After the lead installs any regenerated test fences,
+re-apply the affected implementation files,
+re-run ALL gates (including the full suite once for the new build-state), update the handoff, and
+send the next round within the cap authorized by the lead ruling.
+If the lead rejects the finding, pass the ruling to the next review without waiting for a fold;
+keep the unchanged build-state evidence and update the handoff with the ruling.
+Otherwise fix every CONFIRMED finding,
 re-run ALL gates, update the handoff, send the next round. Cap: 2 rounds.
 
 When the review file ends with `REVIEW CLEAN`:
@@ -178,9 +187,10 @@ Do this:
 2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -m pytest <touched test files> -q --no-header`, plus the ruff, mypy and grep gates in tasks.md. Record the commands and their last lines.
 3. Check the build against tasks.md: the fences are byte-exact reference text, so run `python3 {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — a line starting `{fencecheck.OK}` (it prints `{fencecheck.OK} (<n> steps)`) is success, and every other line it prints is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; root files matching {", ".join(f"`{p}`" for p in gates.COORDINATION)} are coordination files, and `openspec/changes/{change}/` is the change's own spec copy, allowed by the ALLOWED file: neither is a finding.
 4. Re-drive two mutations of your choice on a scratch copy, which never touches the build: `python3 {MUTATE} {w}/openspec/changes/{change}/tasks.md {w} --scratch --only <name>,<name>`. A result that differs from the handoff's mutation log is a finding.
-5. Report ONLY CONFIRMED defects — ones you reproduced or can show at file:line — each with an exact fix. Do not propose work the proposal's Non-goals exclude, new subsystems, persistence, or refactors.
+5. If a CONFIRMED finding requires changing a byte-exact fence, tag it "in the fence"; never mark it FOLDED while unresolved. These unresolved findings prevent REVIEW CLEAN. Count all unresolved confirmed findings and end with `FINDINGS: <n> (spec)` when any are in the fence.
+6. Report ONLY CONFIRMED defects — ones you reproduced or can show at file:line — each with an exact fix. Do not propose work the proposal's Non-goals exclude, new subsystems, persistence, or refactors.
 
-Write {w}/REVIEW-{id}-round-ROUND_N.md: what you ran (commands + last lines), what you checked, then numbered findings. End the file with exactly one sentinel line: `FINDINGS: <n>` or `REVIEW CLEAN`. A clean review still lists what it ran.
+Write {w}/REVIEW-{id}-round-ROUND_N.md: what you ran (commands + last lines), what you checked, then numbered findings. End the file with exactly one sentinel line: `FINDINGS: <n>`, `FINDINGS: <n> (spec)`, or `REVIEW CLEAN`. A clean review still lists what it ran.
 Reply in chat with only the path and the sentinel. If and only if the sentinel is REVIEW CLEAN, also run: herdr agent prompt {lead_pane} "REVIEW CLEAN for {id} after ROUND_N rounds"
 If something in this prompt or the environment cost you time, record one line (not a message to anyone): python3 {RUNLOG} add friction --repo {w} --issue {id} --agent {reviewer} --text "<what cost you time, and how long>"
 """  # noqa: E501
