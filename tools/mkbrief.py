@@ -1,6 +1,6 @@
 """Write BUILD-BRIEFING-<id>.md and CODEX-PROMPT-<id>.md into a build worktree.
 
-usage: mkbrief.py <id> <worktree> <branch> <base-desc> <change-name> <gates-file> <allowed-files-file>
+usage: mkbrief.py <id> <worktree> <branch> <base-desc> <change-name> <allowed-files-file>
                   [--lead-pane <pane>] [--reviewer <agent name>]
 
 The lead pane defaults to $HERDR_PANE_ID (run this from the lead's pane); the
@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import os
 import pathlib
+import re
 import subprocess
 
 import fencecheck
@@ -43,8 +44,47 @@ def has_xdist(python: str) -> bool:
     return subprocess.run([python, "-c", "import xdist"], capture_output=True).returncode == 0
 
 
-def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str, gates: str,
+def task_gates(worktree: pathlib.Path, change: str) -> str:
+    path = worktree / "openspec" / "changes" / change / "tasks.md"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SystemExit(f"cannot read {path}: {exc}") from exc
+    blocks: list[list[str]] = []
+    current: list[str] | None = None
+    fence = ""
+    for line in text.splitlines(keepends=True):
+        if fence:
+            if current is not None:
+                current.append(line)
+            if re.fullmatch(r" {0,3}" + re.escape(fence[0]) + "{" + str(len(fence)) + r",}[ \t]*\n?", line):
+                fence = ""
+            continue
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
+        if marker:
+            fence = marker.group(1)
+            if current is not None:
+                current.append(line)
+        elif re.fullmatch(r" {0,3}## 0\. Gates[ \t]*\n?", line):
+            current = []
+            blocks.append(current)
+        elif re.match(r"^ {0,3}##(?:\s|$)", line):
+            current = None
+        elif current is not None:
+            current.append(line)
+    if len(blocks) != 1 or not "".join(blocks[0]).strip():
+        raise SystemExit(f"{path} must contain exactly one nonempty '## 0. Gates' section")
+    lines = blocks[0]
+    while not lines[0].strip():
+        lines.pop(0)
+    while not lines[-1].strip():
+        lines.pop()
+    return "".join(lines).rstrip("\n") + "\n"
+
+
+def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str,
                    allowed: str, python: str, lead_pane: str, reviewer: str, has_xdist: bool) -> str:
+    gate_text = task_gates(worktree, change)
     main = main_checkout(worktree)
     sha = base_sha(worktree, base)
     xdist = ("`pytest-xdist` is installed; the gates in tasks.md say whether to use it."
@@ -74,7 +114,7 @@ Branch `{branch}`, cut from {base} ({sha}). Do NOT touch `{main}`
 Check each with `python3 {GATES} match "<expected line>" <output file>`: it prints
 MATCH, or the counts that differ. pytest's warnings and wall time do not count.
 
-{gates}
+{gate_text}
 ## The spec — read in this order
 
 1. `openspec/changes/{change}/proposal.md`
@@ -198,7 +238,7 @@ If something in this prompt or the environment cost you time, record one line (n
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    for name in ("id", "worktree", "branch", "base", "change", "gates_file", "allowed_file"):
+    for name in ("id", "worktree", "branch", "base", "change", "allowed_file"):
         ap.add_argument(name)
     ap.add_argument("--lead-pane")
     ap.add_argument("--reviewer", default="codex_review")
@@ -206,13 +246,14 @@ def main(argv: list[str] | None = None) -> None:
     w = pathlib.Path(a.worktree)
     python = find_python(w)
     args = dict(id=a.id, worktree=w, branch=a.branch, base=a.base, change=a.change,
-                gates=pathlib.Path(a.gates_file).read_text(),
                 allowed=pathlib.Path(a.allowed_file).read_text().rstrip(),
                 python=python, lead_pane=resolve_lead_pane(a.lead_pane), reviewer=a.reviewer,
                 has_xdist=has_xdist(python))
+    briefing = build_briefing(**args)
+    reviewer_prompt = build_reviewer_prompt(**args)
     (w / f"ALLOWED-{a.id}.txt").write_text(args["allowed"] + f"\n  - `openspec/changes/{a.change}/`\n")
-    (w / f"BUILD-BRIEFING-{a.id}.md").write_text(build_briefing(**args))
-    (w / f"CODEX-PROMPT-{a.id}.md").write_text(build_reviewer_prompt(**args))
+    (w / f"BUILD-BRIEFING-{a.id}.md").write_text(briefing)
+    (w / f"CODEX-PROMPT-{a.id}.md").write_text(reviewer_prompt)
     print("wrote briefing + codex prompt in", w)
 
 
