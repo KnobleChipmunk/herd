@@ -1,6 +1,6 @@
 # Proposal: no prescribed ruling shape when a finding breaks the byte-exact fences
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/66
 
 ## Class
 

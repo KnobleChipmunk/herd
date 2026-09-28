@@ -1,6 +1,6 @@
 # Proposal: plan reviewer hand-rebuilds the base-to-fences audit each run
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/70
 
 ## Class
 

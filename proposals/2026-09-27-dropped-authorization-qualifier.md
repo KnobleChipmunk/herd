@@ -1,6 +1,6 @@
 # Proposal: contract extraction drops authorization qualifiers from role rules
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/68
 
 ## Class
 
