@@ -705,6 +705,18 @@ committing.
 - A herdr prompt with backticks, `$(…)`, or parentheses breaks zsh quoting
   — write it to a file and `"$(cat file)"` it.
 - Bare `echo ====` trips zsh globbing in compound commands; use `echo "--"`.
+- When the lead's shell is zsh, a variable is not word-split:
+  `R="python3 tools/runlog.py"; $R add …` runs a command literally named
+  `python3 tools/runlog.py`, and the error does not point at the missing
+  run-log entry. In any shell, call every tool by its full path on the
+  command line (#33, #333).
+- Quote every heredoc, `<<'EOF'` and never `<<EOF`: an unquoted heredoc runs
+  the backticks and `$(…)` in its body (#333).
+- Background a herdr prompt with the Bash tool's background mode, never
+  `&`: a `&` job sends no completion notification (#33).
+- Chain a gate into the step it guards with `&&`, never `;`: on #380,
+  `team.py gate dispatch …; herdr agent prompt …` printed the refusal and
+  dispatched anyway.
 - `gh` with the session's `GH_TOKEN` cannot merge; hand the command to the
   user.
 - The openspec config may point the learning-log line at a stub file;
