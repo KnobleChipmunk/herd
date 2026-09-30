@@ -111,3 +111,10 @@ def test_emit_steps_writes_exact_bytes_a_builder_can_apply_without_the_markdown(
     for rel in [*base, "tests/test_new.py"]:
         assert (tmp_path / "from_json" / rel).read_text() == (tmp_path / "from_plan" / rel).read_text(), rel
     assert (tmp_path / "from_json" / "src/anchor.py").read_text() == "total = base + 2 * extra\n"
+
+
+@pytest.mark.parametrize("name", ["librarian.py", "merge_stack.py"])
+def test_no_librarian_tool_defaults_to_a_personal_path(name):
+    text = (pathlib.Path(herdtool.__file__).parent / name).read_text()
+    for banned in ("/home/", "~/projects", "Exocortex", "Obsidian"):
+        assert banned not in text, (name, banned)

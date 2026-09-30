@@ -9,7 +9,7 @@ usage: librarian.py report         [--repo PATH]
 Every number in a ledger row is counted from the run log and live gh, never
 estimated: the model (Hermes) decides which friction class a line belongs to
 and what a proposal says, and this tool does the counting and the file edits.
-The ledgers live in the vault ($HERD_VAULT, default ~/Documents/Obsidian/Exocortex).
+The ledgers live in the vault: $HERD_VAULT, else $XDG_DATA_HOME/herd (~/.local/share/herd).
 """
 from __future__ import annotations
 
@@ -29,7 +29,16 @@ from merge_stack import gh_runner
 COLUMNS = ("date", "repo", "ticket", "pr", "variant", "tier", "plan rounds", "rounds", "findings", "rulings",
            "blocked", "gate miss", "lead", "outcome")
 CAPS = {"small": 2, "full": 3}
-VAULT = pathlib.Path(os.environ.get("HERD_VAULT", pathlib.Path.home() / "Documents/Obsidian/Exocortex"))
+
+
+def vault(environ: os._Environ | dict[str, str] = os.environ) -> pathlib.Path:
+    if environ.get("HERD_VAULT"):
+        return pathlib.Path(environ["HERD_VAULT"])
+    data = environ.get("XDG_DATA_HOME") or str(pathlib.Path(environ["HOME"]) / ".local" / "share")
+    return pathlib.Path(data) / "herd"
+
+
+VAULT = vault()
 HERD_LEDGER = VAULT / "knowledge" / "herd-ledger.md"
 FRICTION_LEDGER = VAULT / "knowledge" / "friction-ledger.md"
 

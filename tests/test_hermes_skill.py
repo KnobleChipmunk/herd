@@ -38,3 +38,11 @@ def test_every_proposals_subcommand_the_skills_name_exists():
     named = set(re.findall(r"proposals\.py ([a-z-]+)", SKILL.read_text() + herd_skill.read_text()))
     assert {"list", "set", "sync"} <= named
     assert named <= set(proposals.COMMANDS), named - set(proposals.COMMANDS)
+
+
+def test_the_skill_names_no_personal_path():
+    """The herd checkout comes from the launch prompt, the vault from $HERD_VAULT."""
+    text = SKILL.read_text()
+    for personal in ("~/projects", "/home/", "Exocortex", "project-mera"):
+        assert personal not in text, personal
+    assert "<herd>" in text and "$HERD_VAULT" in text
