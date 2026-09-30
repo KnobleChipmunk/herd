@@ -178,7 +178,8 @@ byte for byte.
 ## Handoff — write `HANDOFF-{id}.md` in the worktree root
 
 1. Self-review, 10 lines or fewer: what changed, biggest risk, where to look first.
-2. RED tail and GREEN tail (literal).
+2. RED tail and GREEN tail (literal). After a lead fold, keep the pre-fold RED tails and add one
+   line saying they were not re-observed after the fold; the lead re-observes RED in scratch.
 3. Full-suite tail, VERBATIM (you run the full suite once per build-state).
 4. The `python3 {GATES} match` MATCH line for every pytest count gate (RED, GREEN,
    each touched file, the full suite) — not the raw tail; ruff and mypy last

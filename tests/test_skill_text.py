@@ -98,3 +98,11 @@ def test_the_skill_keeps_machine_specifics_in_the_roster_and_bindings():
     for personal in ("swift15", "/home/", "Exocortex", "Obsidian", "on this machine"):
         assert personal not in rest, personal
     assert "example" in paragraph(text, "Who plays each role")
+
+
+def test_a_fold_that_changes_a_test_fence_re_observes_red_in_scratch():
+    """Proposal fold-red-evidence-stale: section 0's RED expectation is re-measured by the lead."""
+    fold = paragraph(SKILL.read_text(), "For an accepted fence change")
+    assert "When the fold changes a test fence" in fold
+    assert "runs that test file against the pinned base in scratch" in fold
+    assert "records its new RED tail and `gates.py match` line in section 0" in fold
