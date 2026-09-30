@@ -13,7 +13,7 @@ Events (friction ledger):
 ## Proposed change
 
 The guard fix shipped in herd#22 mid-run, so the proposal is a code change to
-keep it fixed: add a regression test under `~/projects/herd/tools` that
+keep it fixed: add a regression test under `tools` that
 (a) starts a dummy process whose argv contains the word "pytest" (e.g. a
 `herdr agent prompt`-style command) and asserts `mutate.py`'s guard does not
 report pytest running, and (b) starts a real `python3 -m pytest` process and
@@ -27,3 +27,5 @@ regression suite passes on a fresh clone before the run starts.
 
 ## Grading
 - 2026-09-27: held
+- 2026-09-29: held
+- 2026-09-30: held

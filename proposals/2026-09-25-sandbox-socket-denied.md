@@ -12,7 +12,7 @@ Events (friction ledger):
 
 ## Proposed change
 
-Change the tooling that scripts the reviewer handoff in `~/projects/herd/tools`
+Change the tooling that scripts the reviewer handoff in `tools`
 so the signoff command is issued with its required execution permission stated
 up front (escalated, non-sandbox), rather than being run sandboxed and retried
 after a socket PermissionDenied. The handoff should treat exactly one
@@ -29,3 +29,5 @@ same signoff command failed with Operation not permitted after REVIEW CLEAN).
 
 ## Grading
 - 2026-09-27: held
+- 2026-09-29: held
+- 2026-09-30: held

@@ -12,7 +12,7 @@ Events (friction ledger):
 
 ## Proposed change
 
-Code change in `~/projects/herd/tools` plus one handoff sentence: the build
+Code change in `tools` plus one handoff sentence: the build
 loop should not start a full-suite run while a fold is pending — sequence folds
 first, then a single suite run after the last fold before plan review (enforce
 or warn in the loop tooling that tracks gate runs). The handoff's "run the full
@@ -27,3 +27,6 @@ The next run's ledger shows at most one full-suite run per build-state; no
 `full-suite-rerun-after-fold` events, and no 13+ minute suite run started
 during a pending fold.
 2026-09-26: held
+2026-09-27: held
+2026-09-29: held
+- 2026-09-30: held

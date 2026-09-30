@@ -1,6 +1,6 @@
 # Proposal: plan review passes while the plan omits governing requirements
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/69
+Status: applied https://github.com/KnobleChipmunk/herd/pull/69 2026-09-28
 
 ## Class
 
@@ -31,3 +31,7 @@ verifies three things before the first independent review:
 No `plan-omits-required-requirements` events in the next run's friction lines;
 missing requirements and caller-less commands surface in the plan table before
 the first independent review round, not in round 1 findings.
+
+## Grading
+- 2026-09-29: held
+- 2026-09-30: held

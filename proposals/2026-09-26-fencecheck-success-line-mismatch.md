@@ -13,7 +13,7 @@ Events (friction ledger):
 ## Proposed change
 
 Prefer a tool change over a skill paragraph: the reviewer prompt text in
-`~/projects/herd/tools` (or the skill template it is generated from) should
+`tools` (or the skill template it is generated from) should
 define the sentinel as the regex `^FENCES OK` — i.e. accept
 `FENCES OK (<n> steps)` explicitly and reserve findings for mismatch lines or
 a nonzero exit. If the sentinel is generated from the tool's own output, make
@@ -29,3 +29,5 @@ with no spurious finding raised against it.
 
 ## Grading
 - 2026-09-27: held
+- 2026-09-29: held
+- 2026-09-30: held

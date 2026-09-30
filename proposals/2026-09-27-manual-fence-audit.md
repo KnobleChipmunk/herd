@@ -1,6 +1,6 @@
 # Proposal: plan reviewer hand-rebuilds the base-to-fences audit each run
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/70
+Status: applied https://github.com/KnobleChipmunk/herd/pull/70 2026-09-28
 
 ## Class
 
@@ -31,3 +31,7 @@ No `manual-fence-audit` events in the next run's friction lines; the
 plan reviewer runs the base-projection command and reads anchor counts /
 parity from its output instead of rebuilding the audit in memory, and
 newline-form mismatches no longer read as false zero-match defects.
+
+## Grading
+- 2026-09-29: held
+- 2026-09-30: missed — #482 filed two manual-fence-audit events: codex_build hand-parsed tasks.md fences and made two real errors (insert-vs-replace cue, section 2a's code fences attached to I20), and the plan reviewer hand-wrote read-only checks for all 28 original anchors, insertion boundaries, and mutation anchors because fencecheck.py reports projected, not original-base, counts.

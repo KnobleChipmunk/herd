@@ -14,7 +14,7 @@ Events (friction ledger):
 
 The verdict bug is already fixed in code (herd PR #15, merged), so the proposal is
 a code change to keep it fixed: add a regression test suite under
-`~/projects/herd/tools` that exercises (a) a killer whose node is skipped in the
+`tools` that exercises (a) a killer whose node is skipped in the
 task tree and (b) an unresolvable killer id, asserting both read as neither
 SURVIVED nor KILLED, and (c) a simulated interrupted drive asserting the
 reference tree is restored to the base before the next step. Prefer extending
@@ -29,3 +29,5 @@ regression suite passes on a fresh clone before the run starts.
 
 ## Grading
 - 2026-09-27: held
+- 2026-09-29: held
+- 2026-09-30: held
