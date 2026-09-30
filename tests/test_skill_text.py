@@ -106,3 +106,13 @@ def test_a_fold_that_changes_a_test_fence_re_observes_red_in_scratch():
     assert "When the fold changes a test fence" in fold
     assert "runs that test file against the pinned base in scratch" in fold
     assert "records its new RED tail and `gates.py match` line in section 0" in fold
+
+
+def test_a_fold_returns_to_review_with_its_outcome_checklist():
+    """Proposal fold-coherence-gap (#460, #333): a fold names what it changed before review."""
+    rereview = paragraph(SKILL.read_text(), "**Re-review prompts are disposition-numbered")
+    for row in ("(1) the normal boundary", "(2) the late boundary",
+                "(3) the absent-state behaviour", "(4) every mutation and killer pair it moved"):
+        assert row in rereview
+    assert "follows every branch of the helper" in rereview
+    assert "bounded to the encoding actually observed" in rereview
