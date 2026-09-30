@@ -20,6 +20,7 @@ import gates
 from herdtool import find_python, main_checkout
 
 FENCECHECK = pathlib.Path(__file__).resolve().parent / "fencecheck.py"
+APPLY_STEPS = pathlib.Path(__file__).resolve().parent / "apply_steps.py"
 GATES = pathlib.Path(__file__).resolve().parent / "gates.py"
 MUTATE = pathlib.Path(__file__).resolve().parent / "mutate.py"
 RUNLOG = pathlib.Path(__file__).resolve().parent / "runlog.py"
@@ -108,13 +109,14 @@ def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, c
              if has_xdist else "`pytest-xdist` is NOT installed. Do not install anything.")
     sandbox = f"\n{CODEX_BUILDER_SANDBOX}" if builder.startswith("codex") else ""
     steps_file = f"STEPS-{id}.json"
-    steps_rule = (f"""- Apply sections 1 and 2 from `{steps_file}` in the worktree root: a JSON list of
-  steps in order, each with `name`, `kind`, `path`, `old` and `new`, holding the exact
-  bytes of the verified reference. Load it with `json` and write `new` as it is;
-  never copy fence text out of tasks.md, which is for reading. `kind` is `new_file` (write `new` as
-  the whole file), `whole_file` (same), `append` (add `new` at the end), `replace` (swap
-  the one occurrence of `old` for `new`) or `insert_before` (put `new` immediately before
-  the one occurrence of `old`). Stop at the first `I` step to observe RED.
+    steps_rule = (f"""- Apply sections 1 and 2 from `{steps_file}` in the worktree root, which holds the exact
+  bytes of the verified reference; never copy fence text out of tasks.md, which is for
+  reading. Apply with the shared applier from the worktree root:
+  `python3 {APPLY_STEPS} {steps_file} . T` for the tests (then observe RED), then
+  `python3 {APPLY_STEPS} {steps_file} . I`. It checks every anchor occurs exactly once
+  before writing and stops at the first step that does not fit, naming it. After a lead
+  fold, restore the named file as the ruling says and re-apply only its steps with
+  `python3 {APPLY_STEPS} {steps_file} . --path <file>`. Do not write your own applier.
 """ if (worktree / steps_file).exists() else "")
     return f"""# BUILD BRIEFING — #{id} ({change})
 
