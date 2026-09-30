@@ -1,10 +1,11 @@
 """Write BUILD-BRIEFING-<id>.md and CODEX-PROMPT-<id>.md into a build worktree.
 
 usage: mkbrief.py <id> <worktree> <branch> <base-desc> <change-name> <allowed-files-file>
-                  [--lead-pane <pane>] [--reviewer <agent name>]
+                  [--lead-pane <pane>] [--reviewer <agent name>] [--builder <agent name>]
 
 The lead pane defaults to $HERDR_PANE_ID (run this from the lead's pane); the
-reviewer defaults to the roster's build reviewer, codex_review.
+reviewer defaults to the roster's build reviewer, codex_review, and the builder
+to pi_build.
 """
 from __future__ import annotations
 
@@ -83,12 +84,23 @@ def task_gates(worktree: pathlib.Path, change: str) -> str:
 
 
 def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str,
-                   allowed: str, python: str, lead_pane: str, reviewer: str, has_xdist: bool) -> str:
+                   allowed: str, python: str, lead_pane: str, reviewer: str, has_xdist: bool,
+                   builder: str = "pi_build") -> str:
     gate_text = task_gates(worktree, change)
     main = main_checkout(worktree)
     sha = base_sha(worktree, base)
     xdist = ("`pytest-xdist` is installed; the gates in tasks.md say whether to use it."
              if has_xdist else "`pytest-xdist` is NOT installed. Do not install anything.")
+    sandbox = f"\n{CODEX_BUILDER_SANDBOX}" if builder.startswith("codex") else ""
+    steps_file = f"STEPS-{id}.json"
+    steps_rule = (f"""- Apply sections 1 and 2 from `{steps_file}` in the worktree root: a JSON list of
+  steps in order, each with `name`, `kind`, `path`, `old` and `new`, holding the exact
+  bytes of the verified reference. Load it with `json` and write `new` as it is;
+  never copy fence text out of tasks.md, which is for reading. `kind` is `new_file` (write `new` as
+  the whole file), `whole_file` (same), `append` (add `new` at the end), `replace` (swap
+  the one occurrence of `old` for `new`) or `insert_before` (put `new` immediately before
+  the one occurrence of `old`). Stop at the first `I` step to observe RED.
+""" if (worktree / steps_file).exists() else "")
     return f"""# BUILD BRIEFING — #{id} ({change})
 
 You are the BUILDER. Work ONLY in this worktree:
@@ -108,7 +120,7 @@ Branch `{branch}`, cut from {base} ({sha}). Do NOT touch `{main}`
 - {xdist}
 - Write temporary files into the worktree root, never `/tmp`, and name them `SCRATCH-<anything>`;
   the reviewer's change list ignores those and flags any other stray file.
-
+{sandbox}
 ## Measured gates (your run's COUNTS must match)
 
 Check each with `python3 {GATES} match "<expected line>" <output file>`: it prints
@@ -133,7 +145,7 @@ byte for byte.
   save the tail. Only then do section 2 and reach GREEN.
 - Anchors are quoted text. If an anchor does not match exactly once, STOP and
   send BLOCKED — do not guess.
-- Never loosen, delete, or skip an assertion to make a test pass.
+{steps_rule}- Never loosen, delete, or skip an assertion to make a test pass.
 - Allowed files (edit nothing else):
 {allowed}
 - Mutation drives (section 3): run `python3 {MUTATE} openspec/changes/{change}/tasks.md .`
@@ -193,7 +205,7 @@ When something costs you time — a wrong instruction, a wait, a command that
 failed for a reason the briefing could have prevented — record one line and
 carry on (it feeds the post-run review; it is not a message to the lead):
 
-    python3 {RUNLOG} add friction --repo {worktree} --issue {id} --agent pi_build --text "<what cost you time, and how long>"
+    python3 {RUNLOG} add friction --repo {worktree} --issue {id} --agent {builder} --text "<what cost you time, and how long>"
 """
 
 
@@ -207,6 +219,21 @@ CODEX_SANDBOX = (
     "the round. Give each pytest run a 600-second timeout (`timeout 600` in front of the command), so a "
     "hang ends as an answer."
 )
+
+
+# A Codex builder runs in the same sandbox, and in #482 read one sentence naming
+# every command class as a hint: it ran the full suite in the sandbox, which timed
+# out at 24% (~15 min). One class per line, each saying OUTSIDE the sandbox.
+CODEX_BUILDER_SANDBOX = """- Sandbox (Codex): request escalated permissions on the FIRST attempt for each of these.
+  In the sandbox the network and the herdr socket are denied and the test client hangs;
+  none of that is a defect to diagnose.
+  - Every pytest command on a touched test file: OUTSIDE the sandbox, with `timeout 600` in front.
+  - The full suite: OUTSIDE the sandbox, with `timeout 900` in front and `python -u` so the output file shows progress.
+  - Any command in tasks.md that fetches from the network: OUTSIDE the sandbox.
+  - Every mutate.py drive: OUTSIDE the sandbox.
+  - Every dispatch.py call to the reviewer: OUTSIDE the sandbox.
+  - Every `herdr agent prompt` to the lead: OUTSIDE the sandbox.
+"""
 
 
 def build_reviewer_prompt(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str, python: str,
@@ -242,12 +269,13 @@ def main(argv: list[str] | None = None) -> None:
         ap.add_argument(name)
     ap.add_argument("--lead-pane")
     ap.add_argument("--reviewer", default="codex_review")
+    ap.add_argument("--builder", default="pi_build")
     a = ap.parse_args(argv)
     w = pathlib.Path(a.worktree)
     python = find_python(w)
     args = dict(id=a.id, worktree=w, branch=a.branch, base=a.base, change=a.change,
                 allowed=pathlib.Path(a.allowed_file).read_text().rstrip(),
-                python=python, lead_pane=resolve_lead_pane(a.lead_pane), reviewer=a.reviewer,
+                python=python, lead_pane=resolve_lead_pane(a.lead_pane), reviewer=a.reviewer, builder=a.builder,
                 has_xdist=has_xdist(python))
     briefing = build_briefing(**args)
     reviewer_prompt = build_reviewer_prompt(**args)

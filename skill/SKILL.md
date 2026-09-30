@@ -348,10 +348,13 @@ structure only (#40).
   make (a product call, a behaviour the guild would notice), and anything
   in the operator gates below. With the user present, say which one and
   wait. Unattended, park that issue and carry on (see the sweep).
-- Creates the build worktree and generates the briefing after APPROVE with
+- Creates the build worktree, writes the builder's step file with
+  `python3 <herd>/tools/herdtool.py <plan> emit-steps <worktree>/STEPS-<id>.json`
+  (exact bytes; a fence cannot carry a mid-line fragment exactly, #482), and
+  generates the briefing after APPROVE with
   `python3 <herd>/tools/mkbrief.py <id> <worktree> <branch> <pinned-base-sha>
-  <change-name> <allowed-files-file> --lead-pane <live-pane-id>`, then prompts
-  `pi_build`. Put every measured gate, including the full-suite count,
+  <change-name> <allowed-files-file> --lead-pane <live-pane-id> --builder <pane name>`,
+  then prompts the builder. A `codex*` builder gets the sandbox escalation list. Put every measured gate, including the full-suite count,
   mutation names and fence step count, in tasks.md's single `## 0. Gates`
   section. The generator copies that section; it takes no separate gate file.
   After any spec amendment, regenerate the briefing from tasks.md before
@@ -678,8 +681,8 @@ a force-push are NOT covered and still stop and ask.
 ## Exclusions from the commit
 
 `BUILD-BRIEFING-*.md`, `HANDOFF-*.md`, `REVIEW-*-round-*.md`,
-`PLAN-REVIEW-*-round-*.md`, `RETRO-*.md`, `CODEX-*.md`, `ALLOWED-*.txt` and
-the builder's `SCRATCH-*` files stay untracked.
+`PLAN-REVIEW-*-round-*.md`, `RETRO-*.md`, `CODEX-*.md`, `ALLOWED-*.txt`,
+`STEPS-*.json` and the builder's `SCRATCH-*` files stay untracked.
 Stage files by name. Check the staged list for env files or secrets before
 committing.
 
