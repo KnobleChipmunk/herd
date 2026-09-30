@@ -688,10 +688,11 @@ committing.
 - A herdr prompt with backticks, `$(…)`, or parentheses breaks zsh quoting
   — write it to a file and `"$(cat file)"` it.
 - Bare `echo ====` trips zsh globbing in compound commands; use `echo "--"`.
-- zsh does not word-split a variable: `R="python3 tools/runlog.py"; $R add …`
-  runs a command literally named `python3 tools/runlog.py`, and the error
-  does not point at the missing run-log entry. Call every tool by its full
-  path on the command line (#33, #333).
+- When the lead's shell is zsh, a variable is not word-split:
+  `R="python3 tools/runlog.py"; $R add …` runs a command literally named
+  `python3 tools/runlog.py`, and the error does not point at the missing
+  run-log entry. In any shell, call every tool by its full path on the
+  command line (#33, #333).
 - Quote every heredoc, `<<'EOF'` and never `<<EOF`: an unquoted heredoc runs
   the backticks and `$(…)` in its body (#333).
 - Background a herdr prompt with the Bash tool's background mode, never
