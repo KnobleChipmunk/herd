@@ -159,7 +159,9 @@ byte for byte.
 1. Self-review, 10 lines or fewer: what changed, biggest risk, where to look first.
 2. RED tail and GREEN tail (literal).
 3. Full-suite tail, VERBATIM (you run the full suite once per build-state).
-4. ruff and mypy last lines; every grep gate's output; the fence check's output —
+4. The `python3 {GATES} match` MATCH line for every pytest count gate (RED, GREEN,
+   each touched file, the full suite) — not the raw tail; ruff and mypy last
+   lines; every grep gate's output; the fence check's output —
    `python3 {FENCECHECK} openspec/changes/{change}/tasks.md .` must print
    `FENCES OK (<n> steps)`; any other line is a deviation to fix before review.
 5. `git diff --stat`.
