@@ -22,6 +22,8 @@ Spends effort on what execution cannot catch: re-derive fixture arithmetic, chal
 
 When a rule is extracted, reformatted, or rewritten, compare its actor, action, scope, and authorization condition against the source skill. Check tightened prohibitions as well as relaxed permissions. Require a focused assertion of the surviving authorization condition before approving the plan; cite an existing assertion when it already covers the rewritten rule.
 
+For each changed direct citation or computed input, ask whether its source can display a value outside the output metric's cap or window (a raid-wide tab cell reading 150% cited by an uptime capped at 100). When it can, require one negative-boundary case through that citation before approving (#380-4).
+
 Check the requirement table against the issue and design: every governing requirement needs an implementing step and acceptance evidence, or a linked deferral. Verify every new command has a caller in the skill or a card. Use the source sections to find omissions even when the pre-execution tests pass.
 
 ## Evidence

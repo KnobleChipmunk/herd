@@ -242,3 +242,12 @@ def test_plan_template_accounts_for_requirements_and_command_callers():
     assert "requirement table" in card and "against the issue and design" in card
     assert "every new command" in card and "caller in the skill or a card" in card
     assert "requirement table from `openspec/config.yaml`" in (SKILL_DIR / "SKILL.md").read_text()
+
+
+def test_the_plan_reviewer_checks_every_changed_citation_against_the_output_cap():
+    # Proposal provenance-citation-cap-mismatch (#380-4): a capped metric cited
+    # a tab cell that displayed 150%.
+    card = " ".join((SKILL_DIR / "cards/plan-reviewer.md").read_text().split())
+    assert "For each changed direct citation or computed input" in card
+    assert "display a value outside the output metric's cap or window" in card
+    assert "one negative-boundary case through that citation" in card
