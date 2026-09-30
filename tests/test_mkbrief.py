@@ -376,3 +376,13 @@ def test_the_default_builder_is_the_codex_builder_with_its_sandbox_list(repo_wit
     briefing = (wt / "BUILD-BRIEFING-42.md").read_text()
     assert "--issue 42 --agent codex_build --text" in briefing
     assert mkbrief.CODEX_BUILDER_SANDBOX in briefing
+
+
+def test_the_builder_applies_steps_with_the_shared_applier(repo_with_worktree):
+    # Proposal manual-reference-mutation-recovery: one applier, not one per builder.
+    _, wt, _, _ = brief(repo_with_worktree)
+    (wt / "STEPS-42.json").write_text("[]\n")
+    _, _, briefing, _ = brief(repo_with_worktree)
+    assert f"`python3 {mkbrief.APPLY_STEPS} STEPS-42.json . T`" in briefing
+    assert f"`python3 {mkbrief.APPLY_STEPS} STEPS-42.json . --path <file>`" in briefing
+    assert "Do not write your own applier" in briefing
