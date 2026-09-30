@@ -295,6 +295,13 @@ def test_a_wrapped_measured_baseline_bullet_passes(repo_with_worktree):
     assert "(measured, 286 s)" in mkbrief.task_gates(wt, "fix-x")
 
 
+def test_a_hyphenated_full_suite_baseline_passes(repo_with_worktree):
+    # The refusal itself says "full-suite baseline"; a plan written that way passes.
+    _, wt = repo_with_worktree
+    write_tasks(wt, "# Plan\n\n## 0. Gates\n\n- Full-suite baseline → `510 passed` (measured, 290 s).\n\n## 1. Tests first\n")
+    assert "(measured, 290 s)" in mkbrief.task_gates(wt, "fix-x")
+
+
 def test_a_measured_mark_in_a_later_bullet_does_not_count(repo_with_worktree):
     _, wt = repo_with_worktree
     body = ("- Full suite → `510 passed`.\n"
