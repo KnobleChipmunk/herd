@@ -262,3 +262,45 @@ def test_gate_section_respects_fenced_headings_and_stops_at_next_section(repo_wi
     assert mkbrief.task_gates(wt, "fix-x") == "510 passed\n```text\n## example output\n```\n"
     write_tasks(wt, "## 0. Gates\n \n    python3 -m pytest  \n\t\n## 1. Tests\n")
     assert mkbrief.task_gates(wt, "fix-x") == "    python3 -m pytest  \n"
+
+
+def test_the_builder_logs_friction_under_the_name_it_is_given(repo_with_worktree):
+    _, wt, briefing, _ = brief(repo_with_worktree, builder="codex_build")
+    assert "--issue 42 --agent codex_build --text" in briefing
+    assert "--agent pi_build" not in briefing
+
+
+def test_a_codex_builder_gets_one_escalation_bullet_per_command_class(repo_with_worktree):
+    _, _, briefing, _ = brief(repo_with_worktree, builder="codex_build")
+    assert mkbrief.CODEX_BUILDER_SANDBOX in briefing
+    bullets = [ln.strip() for ln in mkbrief.CODEX_BUILDER_SANDBOX.splitlines()[1:] if ln.strip().startswith("- ")]
+    for command in ("pytest", "full suite", "network", "mutate.py", "dispatch.py", "herdr agent prompt"):
+        hits = [b for b in bullets if command in b]
+        assert len(hits) == 1 and "OUTSIDE the sandbox" in hits[0], command
+    assert "timeout 900" in mkbrief.CODEX_BUILDER_SANDBOX
+
+
+def test_a_pi_builder_gets_no_sandbox_rule(repo_with_worktree):
+    _, _, briefing, _ = brief(repo_with_worktree)
+    assert mkbrief.CODEX_BUILDER_SANDBOX not in briefing
+    assert "--issue 42 --agent pi_build --text" in briefing
+
+
+def test_the_builder_applies_steps_from_the_emitted_json_when_the_lead_wrote_one(repo_with_worktree):
+    _, wt, without, _ = brief(repo_with_worktree)
+    assert "STEPS-42.json" not in without
+    (wt / "STEPS-42.json").write_text("[]\n")
+    _, _, briefing, _ = brief(repo_with_worktree)
+    assert "`STEPS-42.json`" in briefing
+    assert "never copy fence text out of tasks.md" in briefing
+
+
+def test_main_passes_the_builder_name_through(repo_with_worktree, tmp_path, monkeypatch):
+    _, wt = repo_with_worktree
+    monkeypatch.setenv("HERDR_PANE_ID", "w5:p5A")
+    monkeypatch.setenv("HERD_PYTHON", sys.executable)
+    write_tasks(wt)
+    allowed = tmp_path / "allowed.txt"
+    allowed.write_text("  - src/x.py\n")
+    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(allowed), "--builder", "codex_build"])
+    assert "--agent codex_build" in (wt / "BUILD-BRIEFING-42.md").read_text()
