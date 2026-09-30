@@ -396,3 +396,11 @@ def test_the_builder_applies_steps_with_the_shared_applier(repo_with_worktree):
     assert f"`python3 {mkbrief.APPLY_STEPS} STEPS-42.json . T`" in briefing
     assert f"`python3 {mkbrief.APPLY_STEPS} STEPS-42.json . --path <file>`" in briefing
     assert "Do not write your own applier" in briefing
+
+
+def test_the_handoff_carries_the_pre_fold_red_with_a_disclosure(repo_with_worktree):
+    # Proposal fold-red-evidence-stale: the builder does not re-observe RED
+    # after a fold; the lead does, in scratch.
+    _, _, briefing, _ = brief(repo_with_worktree)
+    assert ("After a lead fold, keep the pre-fold RED tails and add one line saying "
+            "they were not re-observed after the fold") in " ".join(briefing.split())

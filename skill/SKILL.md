@@ -670,7 +670,10 @@ unchanged build-state evidence, and records the ruling in the handoff.
 For an accepted fence change, the lead marks `gates.py fold start --issue <id>`,
 folds the accepted fix into the reference,
 re-runs the affected tests and mutations, regenerates the fences, verifies
-byte parity, installs any regenerated test fences in the build worktree,
+byte parity. When the fold changes a test fence, the lead runs that test file against the pinned base in scratch
+and records its new RED tail and `gates.py match` line in section 0 before
+re-applying the implementation, so section 0 and the builder's carried RED
+never silently disagree. It then installs any regenerated test fences in the build worktree,
 regenerates the briefing from the amended tasks.md (`mkbrief.py`, same pinned
 base SHA), then marks `gates.py fold done --issue <id>`. The builder
 re-applies the affected implementation files, re-runs all gates (including the full suite once
