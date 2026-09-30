@@ -300,8 +300,15 @@ structure only (#40).
   test already sketched.
 - Writes the openspec change (`openspec/changes/<name>/`: proposal with
   Grounded facts, design, spec delta, tasks.md with tests first). Every
-  claim cites file:line it actually read. `openspec validate <name>`
-  passes — and note validate is WEAKER than archive: a delta for a spec
+  claim cites file:line it actually read. A fact about live data is
+  queried through the consumer's own code path: find the function the
+  change reads the data through, reproduce its actor selection and
+  filters, and report counts per selected actor, labelled per-actor or
+  combined, never a broader table standing in for it (#333 queried a raw
+  table, not the fetch function the change reads through, and plan review
+  overturned the model). Sample the failure mode as well as clean
+  examples; a clean example cannot show what an error looks like.
+  `openspec validate <name>` passes — and note validate is WEAKER than archive: a delta for a spec
   name with no file under `openspec/specs/` must be headed `## ADDED
   Requirements`, or the archive aborts later (#321).
 - Before generating fences, complete the requirement table from `openspec/config.yaml`
