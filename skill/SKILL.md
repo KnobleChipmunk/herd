@@ -180,6 +180,15 @@ reuse it. Otherwise split and start. Panes stay up across every issue and
 PR of one assignment, and are shut down once, after the retrospective (see
 "Shut down" under Roles).
 
+**After a resume, find the live pane first.** A resumed session inherits
+`HERDR_PANE_ID` and `HERDR_TAB_ID` from the session it resumed, and they can
+name panes that no longer exist (#55: `w1:p2Z` inherited, `w1:p30` live, so
+the first `--current` split failed). Before the first split or dispatch of
+a resumed run, read `herdr pane list` for the lead's own pane (its agent is
+`claude`, its cwd the repo) and its tab, and pass those IDs explicitly:
+`--pane <live id>` instead of `--current`, and `--lead-pane <live id>` to
+`mkbrief.py`.
+
 Creating the panes, once (the Codex invocation is the pre-08-23 one, with
 the roster's models):
 
