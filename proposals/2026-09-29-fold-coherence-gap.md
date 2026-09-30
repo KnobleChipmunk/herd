@@ -1,6 +1,6 @@
 # Proposal: fold declares done without checking implementation constraints
 
-Status: open
+Status: accepted
 
 ## Class
 
