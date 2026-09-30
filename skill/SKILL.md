@@ -1,14 +1,14 @@
 ---
 name: herd
-description: Run the Herdr three-agent build loop — the lead (this session) orchestrates, pre-executes, and writes the openspec change, a local builder model (via pi) builds it in a worktree, a Codex build reviewer reviews round-robin until clean, and the lead runs the `reviewer` skill (audience: ai) as the final pass, then collects a skill retrospective from every agent. Use when the user says "/herd", "herd #N", "run the herd on <issue|goal>", or asks to build an issue with the local builder via Herdr. Requires HERDR_ENV=1. Subagents are replaced by a pane below this one — Codex for plan review, claude for every other role. Models per role are in the Roster table.
+description: Run the Herdr three-agent build loop — the lead (this session) orchestrates, pre-executes, and writes the openspec change, a local builder model (via the Codex CLI) builds it in a worktree, a Codex build reviewer reviews round-robin until clean, and the lead runs the `reviewer` skill (audience: ai) as the final pass, then collects a skill retrospective from every agent. Use when the user says "/herd", "herd #N", "run the herd on <issue|goal>", or asks to build an issue with the local builder via Herdr. Requires HERDR_ENV=1. Subagents are replaced by a pane below this one — Codex for plan review, claude for every other role. Models per role are in the Roster table.
 ---
 
-# Herd — the lead orchestrates, pi builds, Codex reviews
+# Herd — the lead orchestrates, a local model builds in Codex, Codex reviews
 
-This skill governs `/herd` runs. `~/.claude/DEVLOOP.md` governs delegated
-builds outside `/herd`; where the two differ (who authorizes the spec, the
-review-round cap, who pushes), this skill wins inside a `/herd` run
-(operator ruling, #32).
+This skill governs `/herd` runs. An operator may keep a separate loop for
+delegated builds outside `/herd` (such as a `DEVLOOP.md`); where the two
+differ (who authorizes the spec, the review-round cap, who pushes), this
+skill wins inside a `/herd` run (operator ruling, #32).
 
 One session — **the lead, this one** — talks to the user, writes the spec,
 pre-executes it, rules on disputes, and does the final review. Everything
@@ -26,9 +26,10 @@ Rules marked **(#321)** come from that retrospective.
 Who plays each role is decided by two files, not by this table: the portable
 role catalog `skill/herd.yaml` (roles, cards, what each evaluates, what it may
 not do; no vendor names) and the machine's bindings file (#38; `herdsetup.py`,
-#39). The table below is this machine's example profile
-(`skill/profiles/example-claude-codex-pi.yaml`); `probe.py` still reads it
-until #51 moves it to the bindings (#40).
+#39). The table below is one operator's example profile
+(`skill/profiles/example-claude-codex-pi.yaml`), and its local builder model
+is theirs, not a requirement. `probe.py` still reads the table until #51
+moves it to the bindings (#40), so an operator with other models edits both.
 
 This table is the one place models are named; the rest of the skill says
 "the lead", "the builder", "the plan reviewer", "the build reviewer". Change
@@ -38,7 +39,8 @@ a model in the machine's bindings file; keep this table synchronized for
 | Role | Harness | Model | Pane name | Falls back to |
 |---|---|---|---|---|
 | Lead | Claude Code | Opus 5.5 (`claude-opus-5-5`; Fable before 2026-09-25) | — (this session) | — |
-| Builder | pi | Swift 1.5 27B, local (`swift15-qwen3.8-128k:latest`, a Qwen 3.8 fine-tune) | `pi_build` | — |
+| Builder | Codex, profile `swift15` | Swift 1.5 27B, local (`swift15-codex` on llama-swap, a Qwen 3.8 fine-tune) | `codex_build` | Fallback builder |
+| Fallback builder | pi | Swift 1.5 27B, local (`swift15-qwen3.8-128k:latest`) | `pi_build` | — |
 | Plan reviewer | Codex | GPT-6 Astra (`gpt-6-astra`), high effort | `codex_plan_reviewer` | Build reviewer, Fallback reviewer |
 | Build reviewer | Codex | GPT-6 Sol (`gpt-6-sol`), high effort | `codex_review` | Fallback reviewer |
 | Fallback reviewer | Claude Code | Fable (`--model fable`), else Sonnet (`--model sonnet`); the aliases track the latest version | `claude_plan_reviewer` / `claude_review` | — |
@@ -56,6 +58,15 @@ a fallback runs, say so in the PR.
 Reviewers run in the Codex harness, not through pi. The #321 rule that ran
 every role through pi began as an 08-23 trial for the builder only; the
 reviewers moved with it and were never compared (2026-09-25).
+
+The builder runs in the Codex harness too, on the same local model pi ran
+(operator decision, 2026-09-30). On project-mera #482 and #380 it built five
+PRs, up to 264 steps across 47 files, each byte-identical to the lead's
+reference, at about three times pi's steps per minute. It needs
+`mkbrief.py --builder codex_build` (the sandbox list and the step file,
+#72), `--cd <worktree>` on start (herdr's `--cwd` does not reach Codex), and
+Enter after `/new` (Codex opens a checkout picker). pi stays the fallback,
+on the same model.
 
 Load the `herdr` skill first; the `herdr` CLI is the authority on syntax.
 `test "${HERDR_ENV:-}" = 1` or stop — this skill does not work outside Herdr.
@@ -169,7 +180,7 @@ asking the model.
 | Slot | Position | Agent | Name | Job |
 |---|---|---|---|---|
 | 0 | the calling pane | claude (lead) | — | user contact, spec, pre-execution, rulings, final review, commit |
-| 1 | top-right of the lead | pi (builder model) | `pi_build` | builder, in its own worktree |
+| 1 | top-right of the lead | codex (builder model, local profile) | `codex_build` | builder, in its own worktree |
 | 2 | bottom-right of the lead | codex (build reviewer model) | `codex_review` | build reviewer, round-robin with the builder |
 | 3 | below the lead | codex (plan reviewer model) for plan review, else claude | `codex_plan_reviewer` / `opus_<role>` | stands in for ANY subagent the lead would spawn; one occupant at a time |
 
@@ -196,13 +207,17 @@ the roster's models):
 herdr pane split --current --direction right --cwd "$PWD" --no-focus     # → slot 1 (read .result.pane.pane_id)
 herdr pane split --pane <slot1> --direction down --cwd "$PWD" --no-focus  # → slot 2
 herdr pane split --current --direction down --cwd "$PWD" --no-focus       # → slot 3
-herdr agent start pi_build            --kind pi    --pane <slot1> -- --provider ollama --model swift15-qwen3.8-128k:latest
+herdr agent start codex_build         --kind codex --pane <slot1> -- --profile <builder profile> --cd <worktree> -c check_for_update_on_startup=false
 herdr agent start codex_review        --kind codex --pane <slot2> -- -m gpt-6-sol -c model_reasoning_effort=high
 herdr agent start codex_plan_reviewer --kind codex --pane <slot3> -- -m gpt-6-astra -c model_reasoning_effort=high
 ```
 
-Status lines: pi reads `(ollama) swift15-qwen3.8-128k:latest • medium`;
-Codex shows the model and reasoning effort (its `tui.status_line` includes
+The builder starts per build with `--cd` set to that build's worktree: restart
+it (`/quit`, then `agent start`) for the next build. Status lines: the
+builder's names its model and effort; a pi fallback builder
+(`--kind pi -- --provider <provider> --model <model>`) reads
+`(<provider>) <model> • medium`; the reviewers' Codex
+shows the model and reasoning effort (its `tui.status_line` includes
 `model-with-reasoning`). The Codex CLI lists models the ChatGPT login
 refuses, so a listed model is not an available one. Before the first
 review of a run, and again after any refusal or usage-limit error mid-run,
@@ -295,8 +310,15 @@ structure only (#40).
   test already sketched.
 - Writes the openspec change (`openspec/changes/<name>/`: proposal with
   Grounded facts, design, spec delta, tasks.md with tests first). Every
-  claim cites file:line it actually read. `openspec validate <name>`
-  passes — and note validate is WEAKER than archive: a delta for a spec
+  claim cites file:line it actually read. A fact about live data is
+  queried through the consumer's own code path: find the function the
+  change reads the data through, reproduce its actor selection and
+  filters, and report counts per selected actor, labelled per-actor or
+  combined, never a broader table standing in for it (#333 queried a raw
+  table, not the fetch function the change reads through, and plan review
+  overturned the model). Sample the failure mode as well as clean
+  examples; a clean example cannot show what an error looks like.
+  `openspec validate <name>` passes — and note validate is WEAKER than archive: a delta for a spec
   name with no file under `openspec/specs/` must be headed `## ADDED
   Requirements`, or the archive aborts later (#321).
 - Before generating fences, complete the requirement table from `openspec/config.yaml`
@@ -357,10 +379,13 @@ structure only (#40).
   make (a product call, a behaviour the guild would notice), and anything
   in the operator gates below. With the user present, say which one and
   wait. Unattended, park that issue and carry on (see the sweep).
-- Creates the build worktree and generates the briefing after APPROVE with
+- Creates the build worktree, writes the builder's step file with
+  `python3 <herd>/tools/herdtool.py <plan> emit-steps <worktree>/STEPS-<id>.json`
+  (exact bytes; a fence cannot carry a mid-line fragment exactly, #482), and
+  generates the briefing after APPROVE with
   `python3 <herd>/tools/mkbrief.py <id> <worktree> <branch> <pinned-base-sha>
-  <change-name> <allowed-files-file> --lead-pane <live-pane-id>`, then prompts
-  `pi_build`. Put every measured gate, including the full-suite count,
+  <change-name> <allowed-files-file> --lead-pane <live-pane-id> --builder <pane name>`,
+  then prompts the builder. A `codex*` builder gets the sandbox escalation list. Put every measured gate, including the full-suite count,
   mutation names and fence step count, in tasks.md's single `## 0. Gates`
   section. The generator copies that section; it takes no separate gate file.
   After any spec amendment, regenerate the briefing from tasks.md before
@@ -377,11 +402,10 @@ structure only (#40).
   the same turn — no confirmation step.** The review passing is the
   authorization. Stage by name, check the staged list for env files and
   secrets, show the commit, push, open the PR, and hand the user the PR
-  number and the merge command. Push mechanics on this machine: the
-  session's `GH_TOKEN` cannot write, and the credential manager's dialog
-  cannot answer headless, so push as
+  number and the merge command. When the session's `GH_TOKEN` cannot
+  write and the credential manager's dialog cannot answer headless, push as
   `env -u GH_TOKEN git -c credential.helper='!gh auth git-credential' push
-  -u origin <branch>` — the `gh` OAuth login has `repo` scope and answers
+  -u origin <branch>` — a `gh` OAuth login with `repo` scope answers
   without a prompt. Open the PR the same way
   (`env -u GH_TOKEN gh pr create --base main --head <branch>`), and verify
   `baseRefName` on the created PR before reporting it.
@@ -403,7 +427,7 @@ structure only (#40).
 - **Retrospective, after all agents report DONE (#321).** Once the final
   review of the assignment's LAST PR is clean and that PR is pushed, and
   before the closing report:
-  prompt EACH live herd agent (`pi_build`, `codex_review`,
+  prompt EACH live herd agent (`codex_build`, `codex_review`,
   `codex_plan_reviewer`) with exactly — "What would you improve in the herd
   skill after this run? Reply with concrete, numbered items grounded in
   what you actually hit; write them to RETRO-<id>-<yourname>.md in the
@@ -426,7 +450,7 @@ structure only (#40).
   command, so the operator can still reopen a session after the panes are
   gone.
 
-**pi_build (builder).** Works ONLY in its worktree. Tests first, red,
+**codex_build (builder).** Works ONLY in its worktree. Tests first, red,
 then implementation, then gates (pytest + ruff + mypy + the spec's grep
 gate), then the mutation drives. Writes `HANDOFF-<id>.md`. Then:
 1. Prompts `codex_review` with the worktree path, spec path, handoff path,
@@ -465,12 +489,12 @@ lead:  pick + tier → measure gates → spec (text anchors)
        fold defects, regenerate fences, assert fence==file
      → codex_plan_reviewer (small: 1 round; full: until APPROVE; re-derive, never re-execute;
        disposition-numbered re-review prompts; re-execute after every fold)
-     → post the spec summary AND dispatch, same turn: worktree + briefing → prompt pi_build
+     → post the spec summary AND dispatch, same turn: worktree + briefing → prompt codex_build
        (prerequisite found mid-review? carve it out, loop it first, stack the branch)
-pi_build:  tests red → impl → gates → mutations → HANDOFF → review round 1
+codex_build: tests red → impl → gates → mutations → HANDOFF → review round 1
 codex_review: REVIEW-round-1 (FINDINGS: n; spec finding → builder BLOCKED → lead ruling)   ┐
-pi_build:  fix → gates → HANDOFF → round 2   ┘ … until REVIEW CLEAN (cap 2, +1 on ruling)
-codex_review: "REVIEW CLEAN" → lead;  pi_build: "DONE: …" → lead
+codex_build: fix → gates → HANDOFF → round 2   ┘ … until REVIEW CLEAN (cap 2, +1 on ruling)
+codex_review: "REVIEW CLEAN" → lead;  codex_build: "DONE: …" → lead
 lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
        findings? → builder fixes → gates → reviewer re-signs → DONE again → re-review the delta
        clean?    → commit on branch → push → open PR, same turn
@@ -667,7 +691,7 @@ a force-push are NOT covered and still stop and ask.
 
 - **Merge** — the user runs `python3 <herd>/tools/merge_stack.py --repo
   <repo>` to see the plan, then again with `--apply`. It merges every PR the
-  run opened, in order, with a true merge (never squash in project-mera),
+  run opened, in order, with a true merge (never squash),
   stopping at the first one that does not target main or will not merge;
   pulls main, removing an untracked spec copy only when it is byte-identical
   to what merged; and removes the worktrees and branches the run log says
@@ -676,7 +700,7 @@ a force-push are NOT covered and still stop and ask.
   holds is already on origin/main, and otherwise kept with the differing
   files named); then it starts the librarian in the background.
   Re-running it is safe, so a crash half-way is fixed by running it again. One PR by hand is still `env -u GH_TOKEN gh pr merge N
-  --merge` (the session token lacks merge scope); not `--delete-branch`,
+  --merge` when the session token lacks merge scope; not `--delete-branch`,
   which fails on the local branch while its worktree exists.
 - **Archive** — `openspec archive <name> --yes` on a `chore/` branch, then
   pushed and PR'd unasked like the build branch. Pushed to `main` DIRECTLY
@@ -687,8 +711,8 @@ a force-push are NOT covered and still stop and ask.
 ## Exclusions from the commit
 
 `BUILD-BRIEFING-*.md`, `HANDOFF-*.md`, `REVIEW-*-round-*.md`,
-`PLAN-REVIEW-*-round-*.md`, `RETRO-*.md`, `CODEX-*.md`, `ALLOWED-*.txt` and
-the builder's `SCRATCH-*` files stay untracked.
+`PLAN-REVIEW-*-round-*.md`, `RETRO-*.md`, `CODEX-*.md`, `ALLOWED-*.txt`,
+`STEPS-*.json` and the builder's `SCRATCH-*` files stay untracked.
 Stage files by name. Check the staged list for env files or secrets before
 committing.
 
@@ -697,10 +721,22 @@ committing.
 - A herdr prompt with backticks, `$(…)`, or parentheses breaks zsh quoting
   — write it to a file and `"$(cat file)"` it.
 - Bare `echo ====` trips zsh globbing in compound commands; use `echo "--"`.
-- `gh` with the session's `GH_TOKEN` cannot merge; hand the command to the
-  user.
+- When the lead's shell is zsh, a variable is not word-split:
+  `R="python3 tools/runlog.py"; $R add …` runs a command literally named
+  `python3 tools/runlog.py`, and the error does not point at the missing
+  run-log entry. In any shell, call every tool by its full path on the
+  command line (#33, #333).
+- Quote every heredoc, `<<'EOF'` and never `<<EOF`: an unquoted heredoc runs
+  the backticks and `$(…)` in its body (#333).
+- Background a herdr prompt with the Bash tool's background mode, never
+  `&`: a `&` job sends no completion notification (#33).
+- Chain a gate into the step it guards with `&&`, never `;`: on #380,
+  `team.py gate dispatch …; herdr agent prompt …` printed the refusal and
+  dispatched anyway.
+- When the session's `GH_TOKEN` lacks merge scope, `gh` cannot merge; hand
+  the command to the user.
 - The openspec config may point the learning-log line at a stub file;
-  the canonical log is `~/Documents/Obsidian/Exocortex/knowledge/learning-log.md`.
+  the canonical log is `$HERD_VAULT/knowledge/learning-log.md`.
 - `openspec validate` passes a `## MODIFIED Requirements` delta for a spec
   that does not exist yet; `openspec archive` aborts on it. New spec names
   take `## ADDED Requirements` (#321).
@@ -708,7 +744,7 @@ committing.
   guarantees for edge cases the design explicitly traded away. Rule early.
 - Foreground `herdr … --wait` dies at the Bash 10-min cap and the wait is
   lost (#330, twice). Background it — see "Long agent turns" above (#321).
-- The builder (pi) may stop at an "Always allow /tmp/*" permission dialog on its first
+- A pi fallback builder may stop at an "Always allow /tmp/*" permission dialog on its first
   temp-file write; the pane shows `blocked`. Read with `--source visible`,
   `herdr agent send-keys pi_build enter`. Have the briefing's sed write
   into the worktree root instead of /tmp to avoid it.
