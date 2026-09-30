@@ -12,7 +12,7 @@ Events (friction ledger):
 
 ## Proposed change
 
-Code change in `~/projects/herd/tools` plus one handoff sentence: the build
+Code change in `tools` plus one handoff sentence: the build
 loop should not start a full-suite run while a fold is pending — sequence folds
 first, then a single suite run after the last fold before plan review (enforce
 or warn in the loop tooling that tracks gate runs). The handoff's "run the full

@@ -12,7 +12,7 @@ Events (friction ledger):
 
 ## Proposed change
 
-Code change in `~/projects/herd/tools/gates.py`: add `RULING-*` to the
+Code change in `tools/gates.py`: add `RULING-*` to the
 `COORDINATION` exemption tuple alongside BUILD-BRIEFING/HANDOFF/REVIEW/CODEX/
 ALLOWED/RED/GREEN/FULLSUITE/MUTATION-LOG/SCRATCH, with a manifest test that
 asserts a `RULING-<id>-<n>.md` file in the worktree does not produce

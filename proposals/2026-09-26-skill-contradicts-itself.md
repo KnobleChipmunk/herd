@@ -21,7 +21,7 @@ independent arithmetic, AST inspection, and in-memory projection of fences —
 and excluding importing/applying the plan or running its tests and
 mutations. Both #459 retros (PR 1 and tail, by the same role) name this as
 their first action, so it is the operator's to apply; no tool in
-`~/projects/herd/tools` owns this text.
+`tools` owns this text.
 
 ## Prediction
 

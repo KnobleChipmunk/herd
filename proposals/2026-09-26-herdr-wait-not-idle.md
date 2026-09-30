@@ -12,7 +12,7 @@ Events (friction ledger):
 
 ## Proposed change
 
-Change the tooling that scripts agent dispatch in `~/projects/herd/tools`: the
+Change the tooling that scripts agent dispatch in `tools`: the
 dispatch helper should always sequence `herdr agent prompt <role>` followed by
 `herdr agent wait <role> --timeout <t>` as one two-step command, and treat
 "timed out waiting for agent status" from `--wait` as an expected case that

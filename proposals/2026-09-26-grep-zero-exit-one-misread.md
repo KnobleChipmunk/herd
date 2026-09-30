@@ -13,7 +13,7 @@ Events (friction ledger):
 
 ## Proposed change
 
-Code change in `~/projects/herd/tools`: when a briefing generates grep gates,
+Code change in `tools`: when a briefing generates grep gates,
 emit them as a single script (`herdtool.py run-gates <gate-spec>`) that runs
 each gate statement separately (no `&&` chaining), appends `|| true`-safe
 count capture so zero matches are a normal result, forces literal matching

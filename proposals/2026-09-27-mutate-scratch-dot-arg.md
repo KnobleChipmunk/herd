@@ -22,7 +22,7 @@ Events (friction ledger):
 
 ## Proposed change
 
-Code change in `~/projects/herd/tools/mutate.py`. In `drive()`, resolve the
+Code change in `tools/mutate.py`. In `drive()`, resolve the
 worktree path before it is used for the scratch copy name:
 `w = w.resolve()` at the top of `drive()` (or just before line 68). The bug is
 line 68, `copy = pathlib.Path(tmp) / w.name`: when the worktree argument is
@@ -44,6 +44,8 @@ reviewer prompt in this run passed `.`.
 No `mutate-scratch-dot-arg` events in the next run's friction lines;
 `mutate.py --scratch` succeeds with a `.`, relative, or absolute worktree
 argument, and reviewers no longer retry with an absolute path.
-2026-09-27: held
-2026-09-29: held
+
+## Grading
+- 2026-09-27: held
+- 2026-09-29: held
 - 2026-09-30: held

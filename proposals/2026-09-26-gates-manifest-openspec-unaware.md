@@ -12,7 +12,7 @@ Events (friction ledger):
 
 ## Proposed change
 
-Code change in `~/projects/herd/tools/gates.py`: (a) add an exempt-prefix
+Code change in `tools/gates.py`: (a) add an exempt-prefix
 option (or a separate manifest class) so spec paths under
 `openspec/changes/` are excluded from `OUTSIDE ALLOWED` the same way the
 review brief already exempts them; (b) make the reviewer-prompt exclusion

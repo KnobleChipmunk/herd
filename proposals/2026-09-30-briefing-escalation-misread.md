@@ -19,7 +19,7 @@ re-run. The lead had to add the note to the dispatch prompt by hand because
 `mkbrief.py` emits nothing for a Codex builder (the pi builder has no
 sandbox, so the note was never templated).
 
-Change `~/projects/herd/tools/mkbrief.py`: when the builder pane is a Codex
+Change `tools/mkbrief.py`: when the builder pane is a Codex
 harness (not pi), emit the escalation note as a bullet list, one command
 class per line, with "OUTSIDE the sandbox" repeated on each line — the full
 pytest suite, the tasks.md refresh command, every `mutate.py` drive, every

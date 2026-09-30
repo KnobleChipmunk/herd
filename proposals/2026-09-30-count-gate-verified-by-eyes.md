@@ -18,7 +18,7 @@ slip through formatting differences (e.g. the extra "1 warning" clause in a
 full-suite tail). The handoff template's "every grep gate's output" phrasing
 is what scopes the tool match to grep gates only.
 
-Change `~/projects/herd/tools/mkbrief.py` so the handoff template it renders
+Change `tools/mkbrief.py` so the handoff template it renders
 says "every gate's `gates.py match` MATCH line" instead of "every grep
 gate's output", requiring the builder to run `gates.py match` for the pytest
 count gates too and paste the MATCH line, not the raw tail. The template

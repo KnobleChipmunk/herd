@@ -12,7 +12,7 @@ Events (friction ledger):
 
 ## Proposed change
 
-Change a tool in `~/projects/herd/tools`, not a skill paragraph: extend the
+Change a tool in `tools`, not a skill paragraph: extend the
 reviewer preflight (where the reviewer's touched-suite run is scripted) to
 detect the repo's test stack and, for repos whose tests use Starlette/FastAPI
 `TestClient`, record a known-good execution mode in the reviewer brief:
@@ -30,5 +30,5 @@ the touched suite completes in the first escalated attempt.
 
 ## Grading
 - 2026-09-27: held
-- 2026-09-29: missed — #333 codex_review: the round's test client would hang in the sandbox; running pytest and both scratch mutations outside the sandbox on the first attempt (per the explicit prompt rule) avoided a diagnostic detour
+- 2026-09-29: held — #333 codex_review: the round's test client would hang in the sandbox; running pytest and both scratch mutations outside the sandbox on the first attempt (per the explicit prompt rule) avoided a diagnostic detour
 - 2026-09-30: held

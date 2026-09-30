@@ -18,7 +18,7 @@ about measured baselines left it to the reviewer to notice and flag. The
 baseline is cheap — it costs nothing on the critical path if it runs in the
 background during pre-execution while the plan is being reviewed.
 
-Change `~/projects/herd/tools/mkbrief.py` (and the pre-execution step it
+Change `tools/mkbrief.py` (and the pre-execution step it
 drives) so the lead's pre-execution sequence starts the full-suite baseline
 run in the background at HEAD, before the build begins, and writes its tail
 into the briefing as a `measured` value. The briefing's gate-evidence block
