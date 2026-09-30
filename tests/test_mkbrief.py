@@ -378,6 +378,16 @@ def test_the_default_builder_is_the_codex_builder_with_its_sandbox_list(repo_wit
     assert mkbrief.CODEX_BUILDER_SANDBOX in briefing
 
 
+def test_briefing_and_prompt_keep_linter_caches_out_of_the_worktree(repo_with_worktree):
+    # Proposal readonly-worktree-cache-dir: the build worktree rejects cache
+    # writes, so every generated ruff and mypy command carries its cache dir.
+    _, _, briefing, prompt = brief(repo_with_worktree)
+    env = "RUFF_CACHE_DIR=/tmp/herd-42-ruff MYPY_CACHE_DIR=/tmp/herd-42-mypy"
+    assert f"`{env} ruff check <paths>`" in briefing
+    assert f"`{env} PYTHONPATH=src /py/bin/python -m mypy`" in briefing
+    assert f"each ruff and mypy command prefixed `{env}`" in prompt
+
+
 def test_the_builder_applies_steps_with_the_shared_applier(repo_with_worktree):
     # Proposal manual-reference-mutation-recovery: one applier, not one per builder.
     _, wt, _, _ = brief(repo_with_worktree)

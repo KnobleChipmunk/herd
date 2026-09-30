@@ -92,6 +92,13 @@ def task_gates(worktree: pathlib.Path, change: str) -> str:
     return gates
 
 
+def cache_env(id: str) -> str:
+    """The cache locations for one build's ruff and mypy: the build worktree
+    rejects cache writes, so every generated command carries them (proposal
+    readonly-worktree-cache-dir)."""
+    return f"RUFF_CACHE_DIR=/tmp/herd-{id}-ruff MYPY_CACHE_DIR=/tmp/herd-{id}-mypy"
+
+
 def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str,
                    allowed: str, python: str, lead_pane: str, reviewer: str, has_xdist: bool,
                    builder: str = "codex_build") -> str:
@@ -126,9 +133,13 @@ Branch `{branch}`, cut from {base} ({sha}). Do NOT touch `{main}`
 - Python: `{python}` — every python/pytest/mypy command is run from the worktree
   root and prefixed `PYTHONPATH=src`, e.g.
   `PYTHONPATH=src {python} -m pytest <touched test file> -q --no-header`
-- ruff is on PATH: `ruff check <paths>`.
+- ruff is on PATH. Linter caches cannot be written inside the worktree, so prefix
+  every ruff and mypy command with the cache locations:
+  `{cache_env(id)} ruff check <paths>` and
+  `{cache_env(id)} PYTHONPATH=src {python} -m mypy`.
 - {xdist}
-- Write temporary files into the worktree root, never `/tmp`, and name them `SCRATCH-<anything>`;
+- Write temporary files into the worktree root, never `/tmp` (the linter caches above are
+  the one exception), and name them `SCRATCH-<anything>`;
   the reviewer's change list ignores those and flags any other stray file.
 {sandbox}
 ## Measured gates (your run's COUNTS must match)
@@ -263,7 +274,7 @@ Lead rulings in force: RULINGS_PLACEHOLDER
 {sandbox}
 Do this:
 1. Read the spec, then the handoff, then the diff.
-2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -m pytest <touched test files> -q --no-header`, plus the ruff, mypy and grep gates in tasks.md. Record the commands and their last lines.
+2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -m pytest <touched test files> -q --no-header`, plus the ruff, mypy and grep gates in tasks.md, each ruff and mypy command prefixed `{cache_env(id)}`. Record the commands and their last lines.
 3. Check the build against tasks.md: the fences are byte-exact reference text, so run `python3 {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — a line starting `{fencecheck.OK}` (it prints `{fencecheck.OK} (<n> steps)`) is success, and every other line it prints is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; root files matching {", ".join(f"`{p}`" for p in gates.COORDINATION)} are coordination files, and `openspec/changes/{change}/` is the change's own spec copy, allowed by the ALLOWED file: neither is a finding.
 4. Re-drive two mutations of your choice on a scratch copy, which never touches the build: `python3 {MUTATE} {w}/openspec/changes/{change}/tasks.md {w} --scratch --only <name>,<name>`. A result that differs from the handoff's mutation log is a finding.
 5. If a CONFIRMED finding requires changing a byte-exact fence, tag it "in the fence"; never mark it FOLDED while unresolved. These unresolved findings prevent REVIEW CLEAN. Count all unresolved confirmed findings and end with `FINDINGS: <n> (spec)` when any are in the fence.
