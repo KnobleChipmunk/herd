@@ -25,3 +25,6 @@ tool call.
 No `herdr-wait-not-idle` events in the next run's friction lines; dispatch
 transcripts show a single scripted dispatch+wait step and no follow-up manual
 `herdr agent wait` commands.
+2026-09-27: held
+2026-09-29: held
+- 2026-09-30: held

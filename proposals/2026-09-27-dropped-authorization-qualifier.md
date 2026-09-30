@@ -1,6 +1,6 @@
 # Proposal: contract extraction drops authorization qualifiers from role rules
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/68
+Status: applied https://github.com/KnobleChipmunk/herd/pull/68 2026-09-28
 
 ## Class
 
@@ -27,3 +27,7 @@ No `dropped-authorization-qualifier` events in the next run's friction lines;
 extracted or rewritten authority rules keep their operator-authorization
 qualifier, caught by the checklist (and a focused assertion) before the fence
 is frozen rather than in a review round.
+
+## Grading
+- 2026-09-29: held
+- 2026-09-30: held

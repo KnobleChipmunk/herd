@@ -1,6 +1,6 @@
 # Stale HERDR pane/tab IDs on resumed sessions
 
-Status: open
+Status: accepted
 
 ## Class: stale-herdr-pane-ids (inherited HERDR pane/tab IDs are stale on resume)
 

@@ -31,3 +31,6 @@ proposes removing the plan reviewer from the full-suite paragraph.
 
 ## Grading
 - 2026-09-27: held
+- 2026-09-27: missed — this run filed a new skill-contradicts-itself event (#proposal-audit: the briefing says never touch the main checkout while tasks.md mandates running its gates.py suite-ok; the builder had to arbitrate at the moment it hit it)
+- 2026-09-29: missed — #333: the reviewer had to discard the general reviewer skill's commit/shelf/draft-PR steps to honor the review-file-only boundary, and the lead hit the dispatch-gate vs small-tier-one-round contradiction, forcing a second round
+- 2026-09-30: missed — #482 filed a skill-contradicts-itself event: the build reviewer opened the general reviewer skill and had to set aside its PR-publication and commit steps to honor the round's report-only, no-commit boundary.

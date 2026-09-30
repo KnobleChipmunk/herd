@@ -1,6 +1,6 @@
 # Proposal: brief gate summary reports stale or pending results
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/67
+Status: applied https://github.com/KnobleChipmunk/herd/pull/67 2026-09-28
 
 ## Class
 
@@ -35,3 +35,7 @@ No `stale-gate-evidence-in-brief` events in the next run's friction lines;
 the briefing's suite count, mutation range, and fence step count always match
 tasks.md, and a spec amendment triggers a regenerated briefing before the next
 dispatch.
+
+## Grading
+- 2026-09-29: missed — #333 plan reviewer: the round-2 dispatch reused the original brief, which still said SMALL gets one round and described the old apply-count fixture; the reviewer had to reconcile the superseded instructions against the current authorization
+- 2026-09-30: held

@@ -1,6 +1,6 @@
 # Proposal: no prescribed ruling shape when a finding breaks the byte-exact fences
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/66
+Status: applied https://github.com/KnobleChipmunk/herd/pull/66 2026-09-28
 
 ## Class
 
@@ -44,3 +44,7 @@ No `no-prescribed-ruling-for-fence-conflict` events in the next run's friction
 lines; fence-owned findings appear as `FINDINGS: <n> (spec)` in the round
 file, the builder sends BLOCKED in round 1 (no second round spent), and the
 lead never has to discover spec-owned defects during a final-pass read.
+
+## Grading
+- 2026-09-29: held
+- 2026-09-30: held

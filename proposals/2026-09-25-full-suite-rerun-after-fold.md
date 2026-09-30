@@ -27,3 +27,6 @@ The next run's ledger shows at most one full-suite run per build-state; no
 `full-suite-rerun-after-fold` events, and no 13+ minute suite run started
 during a pending fold.
 2026-09-26: held
+2026-09-27: held
+2026-09-29: held
+- 2026-09-30: held

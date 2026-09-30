@@ -1,6 +1,6 @@
 # Proposal: mutate.py --scratch fails when the worktree argument is '.'
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/62
+Status: applied https://github.com/KnobleChipmunk/herd/pull/62 2026-09-27
 
 ## Class
 
@@ -44,3 +44,6 @@ reviewer prompt in this run passed `.`.
 No `mutate-scratch-dot-arg` events in the next run's friction lines;
 `mutate.py --scratch` succeeds with a `.`, relative, or absolute worktree
 argument, and reviewers no longer retry with an absolute path.
+2026-09-27: held
+2026-09-29: held
+- 2026-09-30: held
