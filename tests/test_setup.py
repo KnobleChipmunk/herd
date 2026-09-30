@@ -148,7 +148,7 @@ def test_from_example_copies_the_profile_only_after_confirmation(tmp_path):
     target = tmp_path / "bindings.yaml"
     assert setup.from_example(target, ask=scripted("n")) == 1 and not target.exists()
     assert setup.from_example(target, ask=scripted("y")) == 0
-    assert bindings.load(target)["roles"]["builder"]["harness"] == "pi"
+    assert bindings.load(target)["roles"]["builder"]["harness"] == "codex"
     assert setup.from_example(target, ask=scripted("y")) == 1  # never overwrites an existing file
 
 
@@ -266,7 +266,7 @@ def test_an_entry_without_a_date_is_left_out_without_crashing(capsys):
 def test_from_example_creates_the_target_directory_after_confirmation(tmp_path):
     target = tmp_path / "herd" / "bindings.yaml"
     assert setup.from_example(target, ask=scripted("y")) == 0
-    assert bindings.load(target)["roles"]["builder"]["harness"] == "pi"
+    assert bindings.load(target)["roles"]["builder"]["harness"] == "codex"
 
 
 def test_from_example_never_clobbers_a_file_created_during_confirmation(tmp_path):

@@ -33,17 +33,23 @@ def test_the_shipped_roster_gives_the_build_reviewer_sol_then_claude():
         ("Codex", "gpt-6-sol"), ("Claude Code", "fable"), ("Claude Code", "sonnet")]
 
 
-def test_the_shipped_roster_names_the_builder_and_its_pane():
+def test_the_shipped_roster_builds_with_codex_on_the_local_profile_then_pi():
+    # The builder's model is local in both harnesses; Codex reaches it
+    # through its swift15 profile (project-mera #380: four builds, each
+    # byte-identical to the reference).
     roster = probe.parse_roster(SKILL.read_text())
-    assert roster["Builder"]["models"] == ["swift15-qwen3.8-128k:latest"]
-    assert roster["Builder"]["panes"] == ["pi_build"]
-    assert probe.chain(roster, "Builder") == [("pi", "swift15-qwen3.8-128k:latest")]
+    assert roster["Builder"]["models"] == ["swift15-codex"]
+    assert roster["Builder"]["panes"] == ["codex_build"]
+    assert probe.chain(roster, "Builder") == [
+        ("Codex, profile `swift15`", "swift15-codex"), ("pi", "swift15-qwen3.8-128k:latest")]
 
 
 @pytest.mark.parametrize("harness, model, cmd", [
     ("Codex", "gpt-6-sol", ["codex", "exec", "-m", "gpt-6-sol", probe.PROMPT]),
     ("Claude Code", "fable", ["claude", "-p", "--model", "fable", probe.PROMPT]),
     ("pi", "swift15-qwen3.8-128k:latest", ["pi", "--model", "swift15-qwen3.8-128k:latest", "-p", probe.PROMPT]),
+    ("Codex, profile `swift15`", "swift15-codex",
+     ["codex", "--profile", "swift15", "exec", "--skip-git-repo-check", "-m", "swift15-codex", probe.PROMPT]),
 ])
 def test_each_harness_is_probed_with_its_own_command(harness, model, cmd):
     assert probe.probe_command(harness, model) == cmd
@@ -84,7 +90,7 @@ def test_main_reports_each_role_and_logs_a_fallback(repo_with_worktree, capsys, 
     monkeypatch.setattr(probe, "run", refuse("gpt-6-astra"))
     assert probe.main(["--skill", str(SKILL), "--log", "--repo", str(main)]) == 0
     out = capsys.readouterr().out.splitlines()
-    assert "Builder: swift15-qwen3.8-128k:latest (pi)" in out
+    assert "Builder: swift15-codex (Codex, profile `swift15`)" in out
     assert "Plan reviewer: gpt-6-sol (Codex) — FALLBACK; gpt-6-astra: model is not supported when using Codex" \
            " with a ChatGPT account" in out
     assert "Build reviewer: gpt-6-sol (Codex)" in out
@@ -100,4 +106,5 @@ def test_main_exits_one_when_a_role_has_no_working_model(capsys, monkeypatch):
 
 def test_the_roster_is_exactly_the_first_table_after_its_heading():
     roster = probe.parse_roster(SKILL.read_text())
-    assert list(roster) == ["Lead", "Builder", "Plan reviewer", "Build reviewer", "Fallback reviewer"]
+    assert list(roster) == ["Lead", "Builder", "Fallback builder", "Plan reviewer", "Build reviewer",
+                            "Fallback reviewer"]

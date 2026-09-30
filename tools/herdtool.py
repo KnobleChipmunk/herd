@@ -11,6 +11,7 @@ Step = dict(kind="replace"|"append"|"insert_before"|"new_file", path=..., old=..
   new_file:       new is the whole file body
 
 usage: herdtool.py <plan.py> apply-tests|apply-impl|mutate|render|check-applied <worktree>
+       herdtool.py <plan.py> emit-steps <out.json>   (the builder's STEPS-<id>.json)
 
 The interpreter is $HERD_PYTHON, else the main checkout's .venv, else this one.
 """
@@ -363,6 +364,14 @@ def parse_tasks(text: str) -> list[dict]:
     return steps
 
 
+def steps_json(plan) -> list[dict]:
+    """Every T/I step with its exact bytes. A rendered fence always ends with a
+    newline, so a mid-line fragment cannot be read back exactly from tasks.md;
+    a builder applies steps from this list instead of copying fence text."""
+    return [{"name": f"{prefix}{i}", "kind": s["kind"], "path": s["path"], "old": s.get("old"), "new": s["new"]}
+            for prefix, steps in (("T", plan.TESTS), ("I", plan.IMPL)) for i, s in enumerate(steps, 1)]
+
+
 def main() -> None:
     plan = load(sys.argv[1])
     cmd = sys.argv[2]
@@ -381,6 +390,11 @@ def main() -> None:
         bad = [s["path"] + ":" + s["why"][:40] for s in plan.TESTS + plan.IMPL if not is_applied(w, s)]
         print("PARITY OK" if not bad else "PARITY FAIL: " + "; ".join(bad))
         sys.exit(1 if bad else 0)
+    elif cmd == "emit-steps":
+        out = pathlib.Path(sys.argv[3])
+        steps = steps_json(plan)
+        out.write_text(json.dumps(steps, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        print("wrote", len(steps), "steps to", out)
     elif cmd == "render":
         print("## 1. Tests first (expect RED)\n")
         print(render_steps(plan.TESTS, 1, "T"))
