@@ -285,3 +285,21 @@ def test_a_measured_full_suite_baseline_passes(repo_with_worktree):
     _, wt = repo_with_worktree
     write_tasks(wt, "# Plan\n\n## 0. Gates\n\n" + MEASURED + "M1–M5\n\n## 1. Tests first\n")
     assert "(measured, 290 s)" in mkbrief.task_gates(wt, "fix-x")
+
+
+def test_a_wrapped_measured_baseline_bullet_passes(repo_with_worktree):
+    # The shape #380's tasks.md used: the count on the bullet's second line.
+    _, wt = repo_with_worktree
+    wrapped = ("- Full suite `PYTHONPATH=src <py> -B -m pytest -q -p no:cacheprovider` →\n"
+               "  `6934 passed, 1 skipped, 7 deselected` (measured, 286 s).\n")
+    write_tasks(wt, "# Plan\n\n## 0. Gates\n\n" + wrapped + "- ruff → clean\n\n## 1. Tests first\n")
+    assert "(measured, 286 s)" in mkbrief.task_gates(wt, "fix-x")
+
+
+def test_a_measured_mark_in_a_later_bullet_does_not_count(repo_with_worktree):
+    _, wt = repo_with_worktree
+    body = ("- Full suite → `510 passed`.\n"
+            "- Touched file → `12 passed` (measured, 3 s).\n")
+    write_tasks(wt, "# Plan\n\n## 0. Gates\n\n" + body + "\n## 1. Tests first\n")
+    with pytest.raises(SystemExit, match=r"full-suite baseline"):
+        mkbrief.task_gates(wt, "fix-x")
