@@ -290,12 +290,11 @@ structure only (#40).
   queried through the consumer's own code path: find the function the
   change reads the data through, reproduce its actor selection and
   filters, and report counts per selected actor, labelled per-actor or
-  combined, never a broader table standing in for it (#333 queried
-  Friendlies Debuffs, not `fetch_tank_debuff_events`, and plan review
-  overturned the model). Sample the failure mode (a missed swap, a
-  no-aura pull) as well as clean examples; a clean example cannot show
-  what an error looks like. `openspec validate <name>`
-  passes — and note validate is WEAKER than archive: a delta for a spec
+  combined, never a broader table standing in for it (#333 queried a raw
+  table, not the fetch function the change reads through, and plan review
+  overturned the model). Sample the failure mode as well as clean
+  examples; a clean example cannot show what an error looks like.
+  `openspec validate <name>` passes — and note validate is WEAKER than archive: a delta for a spec
   name with no file under `openspec/specs/` must be headed `## ADDED
   Requirements`, or the archive aborts later (#321).
 - Before generating fences, complete the requirement table from `openspec/config.yaml`
