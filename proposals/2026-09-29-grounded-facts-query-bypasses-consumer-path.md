@@ -1,6 +1,6 @@
 # Proposal: grounded facts queried through a table that is not the consumer's own code path
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/78
 
 ## Class
 
