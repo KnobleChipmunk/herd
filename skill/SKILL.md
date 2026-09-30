@@ -301,8 +301,15 @@ structure only (#40).
   test already sketched.
 - Writes the openspec change (`openspec/changes/<name>/`: proposal with
   Grounded facts, design, spec delta, tasks.md with tests first). Every
-  claim cites file:line it actually read. `openspec validate <name>`
-  passes — and note validate is WEAKER than archive: a delta for a spec
+  claim cites file:line it actually read. A fact about live data is
+  queried through the consumer's own code path: find the function the
+  change reads the data through, reproduce its actor selection and
+  filters, and report counts per selected actor, labelled per-actor or
+  combined, never a broader table standing in for it (#333 queried a raw
+  table, not the fetch function the change reads through, and plan review
+  overturned the model). Sample the failure mode as well as clean
+  examples; a clean example cannot show what an error looks like.
+  `openspec validate <name>` passes — and note validate is WEAKER than archive: a delta for a spec
   name with no file under `openspec/specs/` must be headed `## ADDED
   Requirements`, or the archive aborts later (#321).
 - Before generating fences, complete the requirement table from `openspec/config.yaml`
@@ -705,6 +712,18 @@ committing.
 - A herdr prompt with backticks, `$(…)`, or parentheses breaks zsh quoting
   — write it to a file and `"$(cat file)"` it.
 - Bare `echo ====` trips zsh globbing in compound commands; use `echo "--"`.
+- When the lead's shell is zsh, a variable is not word-split:
+  `R="python3 tools/runlog.py"; $R add …` runs a command literally named
+  `python3 tools/runlog.py`, and the error does not point at the missing
+  run-log entry. In any shell, call every tool by its full path on the
+  command line (#33, #333).
+- Quote every heredoc, `<<'EOF'` and never `<<EOF`: an unquoted heredoc runs
+  the backticks and `$(…)` in its body (#333).
+- Background a herdr prompt with the Bash tool's background mode, never
+  `&`: a `&` job sends no completion notification (#33).
+- Chain a gate into the step it guards with `&&`, never `;`: on #380,
+  `team.py gate dispatch …; herdr agent prompt …` printed the refusal and
+  dispatched anyway.
 - When the session's `GH_TOKEN` lacks merge scope, `gh` cannot merge; hand
   the command to the user.
 - The openspec config may point the learning-log line at a stub file;
