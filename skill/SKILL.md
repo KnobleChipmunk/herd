@@ -5,10 +5,10 @@ description: Run the Herdr three-agent build loop — the lead (this session) or
 
 # Herd — the lead orchestrates, a local model builds in Codex, Codex reviews
 
-This skill governs `/herd` runs. `~/.claude/DEVLOOP.md` governs delegated
-builds outside `/herd`; where the two differ (who authorizes the spec, the
-review-round cap, who pushes), this skill wins inside a `/herd` run
-(operator ruling, #32).
+This skill governs `/herd` runs. An operator may keep a separate loop for
+delegated builds outside `/herd` (such as a `DEVLOOP.md`); where the two
+differ (who authorizes the spec, the review-round cap, who pushes), this
+skill wins inside a `/herd` run (operator ruling, #32).
 
 One session — **the lead, this one** — talks to the user, writes the spec,
 pre-executes it, rules on disputes, and does the final review. Everything
@@ -26,9 +26,10 @@ Rules marked **(#321)** come from that retrospective.
 Who plays each role is decided by two files, not by this table: the portable
 role catalog `skill/herd.yaml` (roles, cards, what each evaluates, what it may
 not do; no vendor names) and the machine's bindings file (#38; `herdsetup.py`,
-#39). The table below is this machine's example profile
-(`skill/profiles/example-claude-codex-pi.yaml`); `probe.py` still reads it
-until #51 moves it to the bindings (#40).
+#39). The table below is one operator's example profile
+(`skill/profiles/example-claude-codex-pi.yaml`), and its local builder model
+is theirs, not a requirement. `probe.py` still reads the table until #51
+moves it to the bindings (#40), so an operator with other models edits both.
 
 This table is the one place models are named; the rest of the skill says
 "the lead", "the builder", "the plan reviewer", "the build reviewer". Change
@@ -197,16 +198,16 @@ the roster's models):
 herdr pane split --current --direction right --cwd "$PWD" --no-focus     # → slot 1 (read .result.pane.pane_id)
 herdr pane split --pane <slot1> --direction down --cwd "$PWD" --no-focus  # → slot 2
 herdr pane split --current --direction down --cwd "$PWD" --no-focus       # → slot 3
-herdr agent start codex_build         --kind codex --pane <slot1> -- --profile swift15 --cd <worktree> -c check_for_update_on_startup=false
+herdr agent start codex_build         --kind codex --pane <slot1> -- --profile <builder profile> --cd <worktree> -c check_for_update_on_startup=false
 herdr agent start codex_review        --kind codex --pane <slot2> -- -m gpt-6-sol -c model_reasoning_effort=high
 herdr agent start codex_plan_reviewer --kind codex --pane <slot3> -- -m gpt-6-astra -c model_reasoning_effort=high
 ```
 
 The builder starts per build with `--cd` set to that build's worktree: restart
 it (`/quit`, then `agent start`) for the next build. Status lines: the
-builder reads `Swift 1.5 27B (local) medium`; a pi fallback builder
-(`--kind pi -- --provider ollama --model swift15-qwen3.8-128k:latest`)
-reads `(ollama) swift15-qwen3.8-128k:latest • medium`; the reviewers' Codex
+builder's names its model and effort; a pi fallback builder
+(`--kind pi -- --provider <provider> --model <model>`) reads
+`(<provider>) <model> • medium`; the reviewers' Codex
 shows the model and reasoning effort (its `tui.status_line` includes
 `model-with-reasoning`). The Codex CLI lists models the ChatGPT login
 refuses, so a listed model is not an available one. Before the first
@@ -385,11 +386,10 @@ structure only (#40).
   the same turn — no confirmation step.** The review passing is the
   authorization. Stage by name, check the staged list for env files and
   secrets, show the commit, push, open the PR, and hand the user the PR
-  number and the merge command. Push mechanics on this machine: the
-  session's `GH_TOKEN` cannot write, and the credential manager's dialog
-  cannot answer headless, so push as
+  number and the merge command. When the session's `GH_TOKEN` cannot
+  write and the credential manager's dialog cannot answer headless, push as
   `env -u GH_TOKEN git -c credential.helper='!gh auth git-credential' push
-  -u origin <branch>` — the `gh` OAuth login has `repo` scope and answers
+  -u origin <branch>` — a `gh` OAuth login with `repo` scope answers
   without a prompt. Open the PR the same way
   (`env -u GH_TOKEN gh pr create --base main --head <branch>`), and verify
   `baseRefName` on the created PR before reporting it.
@@ -675,7 +675,7 @@ a force-push are NOT covered and still stop and ask.
 
 - **Merge** — the user runs `python3 <herd>/tools/merge_stack.py --repo
   <repo>` to see the plan, then again with `--apply`. It merges every PR the
-  run opened, in order, with a true merge (never squash in project-mera),
+  run opened, in order, with a true merge (never squash),
   stopping at the first one that does not target main or will not merge;
   pulls main, removing an untracked spec copy only when it is byte-identical
   to what merged; and removes the worktrees and branches the run log says
@@ -684,7 +684,7 @@ a force-push are NOT covered and still stop and ask.
   holds is already on origin/main, and otherwise kept with the differing
   files named); then it starts the librarian in the background.
   Re-running it is safe, so a crash half-way is fixed by running it again. One PR by hand is still `env -u GH_TOKEN gh pr merge N
-  --merge` (the session token lacks merge scope); not `--delete-branch`,
+  --merge` when the session token lacks merge scope; not `--delete-branch`,
   which fails on the local branch while its worktree exists.
 - **Archive** — `openspec archive <name> --yes` on a `chore/` branch, then
   pushed and PR'd unasked like the build branch. Pushed to `main` DIRECTLY
@@ -705,10 +705,10 @@ committing.
 - A herdr prompt with backticks, `$(…)`, or parentheses breaks zsh quoting
   — write it to a file and `"$(cat file)"` it.
 - Bare `echo ====` trips zsh globbing in compound commands; use `echo "--"`.
-- `gh` with the session's `GH_TOKEN` cannot merge; hand the command to the
-  user.
+- When the session's `GH_TOKEN` lacks merge scope, `gh` cannot merge; hand
+  the command to the user.
 - The openspec config may point the learning-log line at a stub file;
-  the canonical log is `~/Documents/Obsidian/Exocortex/knowledge/learning-log.md`.
+  the canonical log is `$HERD_VAULT/knowledge/learning-log.md`.
 - `openspec validate` passes a `## MODIFIED Requirements` delta for a spec
   that does not exist yet; `openspec archive` aborts on it. New spec names
   take `## ADDED Requirements` (#321).
