@@ -286,7 +286,13 @@ evidence (what was re-run, what it printed), then instructs: "re-read the
 four files fresh and sweep for anything stale or newly contradictory —
 including what the revision itself broke." In #321, two of ten rounds
 found defects the fold introduced; that sweep instruction is what catches
-them.
+them. A fold that changes the model (what a function returns, which inputs it
+accepts, a default) carries an outcome checklist in its disposition, one row
+each: (1) the normal boundary, (2) the late boundary, (3) the absent-state
+behaviour, and (4) every mutation and killer pair it moved. A spec claim about
+a helper ("never returns 0") holds only when it follows every branch of the helper,
+and its wording is bounded to the encoding actually observed, without growing
+the change into defensive parsing (#460, #333).
 
 **Never** use the `Agent` tool in this skill. Every subagent is the slot-3 pane.
 
