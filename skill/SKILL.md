@@ -191,6 +191,15 @@ reuse it. Otherwise split and start. Panes stay up across every issue and
 PR of one assignment, and are shut down once, after the retrospective (see
 "Shut down" under Roles).
 
+**After a resume, find the live pane first.** A resumed session inherits
+`HERDR_PANE_ID` and `HERDR_TAB_ID` from the session it resumed, and they can
+name panes that no longer exist (#55: `w1:p2Z` inherited, `w1:p30` live, so
+the first `--current` split failed). Before the first split or dispatch of
+a resumed run, read `herdr pane list` for the lead's own pane (its agent is
+`claude`, its cwd the repo) and its tab, and pass those IDs explicitly:
+`--pane <live id>` instead of `--current`, and `--lead-pane <live id>` to
+`mkbrief.py`.
+
 Creating the panes, once (the Codex invocation is the pre-08-23 one, with
 the roster's models):
 
@@ -345,7 +354,11 @@ structure only (#40).
   whole last line; warnings and wall time do not count) — and when the change
   has a prerequisite, the baseline is the PREREQUISITE's measured state,
   re-measured whenever the prerequisite changes. Include the full-suite
-  wall time so the builder does not read a 5-min run as a hang.
+  wall time so the builder does not read a 5-min run as a hang. The
+  full-suite baseline is RUN at the base, in the background at the start of
+  pre-execution, and its line says `(measured, <seconds> s)`: never the
+  after count less the new tests (#482). `mkbrief.py` refuses a gates
+  section without that mark, or with `(derived`.
 - **Prerequisite carve-out (#321).** When review or pre-execution finds a
   defect in shared code the change depends on: carve it into its OWN
   change (usually small tier) with its own spec and review loop; build it
