@@ -4,8 +4,10 @@ import pytest
 
 import mkbrief
 
+MEASURED = "- Full suite at the base → `510 passed` (measured, 290 s).\n"
 
-def write_tasks(worktree, body="# Plan\n\n## 0. Gates\n\n510 passed\nM1–M5\nFENCES OK (11 steps)\n\n## 1. Tests first\n"):
+
+def write_tasks(worktree, body="# Plan\n\n## 0. Gates\n\n- Full suite → `510 passed` (measured, 290 s).\nM1–M5\nFENCES OK (11 steps)\n\n## 1. Tests first\n"):
     path = worktree / "openspec/changes/fix-x/tasks.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body)
@@ -256,12 +258,57 @@ def test_missing_tasks_names_the_unreadable_file(repo_with_worktree):
 def test_gate_section_respects_fenced_headings_and_stops_at_next_section(repo_with_worktree):
     _, wt = repo_with_worktree
     body = ("# Plan\n````python\n## 0. Gates\nfalse\n````\n## 0. Gates\n"
-            "510 passed\n```text\n## example output\n```\n## 1. Tests\nnot a gate\n"
+            + MEASURED + "```text\n## example output\n```\n## 1. Tests\nnot a gate\n"
             "~~~text\n## 0. Gates\nfalse again\n~~~\n")
     write_tasks(wt, body)
-    assert mkbrief.task_gates(wt, "fix-x") == "510 passed\n```text\n## example output\n```\n"
-    write_tasks(wt, "## 0. Gates\n \n    python3 -m pytest  \n\t\n## 1. Tests\n")
-    assert mkbrief.task_gates(wt, "fix-x") == "    python3 -m pytest  \n"
+    assert mkbrief.task_gates(wt, "fix-x") == MEASURED + "```text\n## example output\n```\n"
+    write_tasks(wt, "## 0. Gates\n \n    " + MEASURED + "\t\n## 1. Tests\n")
+    assert mkbrief.task_gates(wt, "fix-x") == "    " + MEASURED
+
+
+@pytest.mark.parametrize("baseline", [
+    "- Full suite at the base → `510 passed`.\n",
+    "- Full suite at the base → `510 passed` (derived: 513 after, less 3 new tests).\n",
+    "",
+])
+def test_a_full_suite_baseline_that_was_not_run_stops_the_briefing(repo_with_worktree, baseline):
+    # #482: the base count was the GREEN count less the new tests, and only
+    # the plan reviewer noticed. A briefing now needs the baseline run.
+    _, wt = repo_with_worktree
+    write_tasks(wt, "# Plan\n\n## 0. Gates\n\n" + baseline + "M1–M5\n\n## 1. Tests first\n")
+    with pytest.raises(SystemExit, match=r"full-suite baseline.*\(measured"):
+        mkbrief.task_gates(wt, "fix-x")
+
+
+def test_a_measured_full_suite_baseline_passes(repo_with_worktree):
+    _, wt = repo_with_worktree
+    write_tasks(wt, "# Plan\n\n## 0. Gates\n\n" + MEASURED + "M1–M5\n\n## 1. Tests first\n")
+    assert "(measured, 290 s)" in mkbrief.task_gates(wt, "fix-x")
+
+
+def test_a_wrapped_measured_baseline_bullet_passes(repo_with_worktree):
+    # The shape #380's tasks.md used: the count on the bullet's second line.
+    _, wt = repo_with_worktree
+    wrapped = ("- Full suite `PYTHONPATH=src <py> -B -m pytest -q -p no:cacheprovider` →\n"
+               "  `6934 passed, 1 skipped, 7 deselected` (measured, 286 s).\n")
+    write_tasks(wt, "# Plan\n\n## 0. Gates\n\n" + wrapped + "- ruff → clean\n\n## 1. Tests first\n")
+    assert "(measured, 286 s)" in mkbrief.task_gates(wt, "fix-x")
+
+
+def test_a_hyphenated_full_suite_baseline_passes(repo_with_worktree):
+    # The refusal itself says "full-suite baseline"; a plan written that way passes.
+    _, wt = repo_with_worktree
+    write_tasks(wt, "# Plan\n\n## 0. Gates\n\n- Full-suite baseline → `510 passed` (measured, 290 s).\n\n## 1. Tests first\n")
+    assert "(measured, 290 s)" in mkbrief.task_gates(wt, "fix-x")
+
+
+def test_a_measured_mark_in_a_later_bullet_does_not_count(repo_with_worktree):
+    _, wt = repo_with_worktree
+    body = ("- Full suite → `510 passed`.\n"
+            "- Touched file → `12 passed` (measured, 3 s).\n")
+    write_tasks(wt, "# Plan\n\n## 0. Gates\n\n" + body + "\n## 1. Tests first\n")
+    with pytest.raises(SystemExit, match=r"full-suite baseline"):
+        mkbrief.task_gates(wt, "fix-x")
 
 
 def test_handoff_carries_a_match_line_for_every_pytest_count_gate(repo_with_worktree):

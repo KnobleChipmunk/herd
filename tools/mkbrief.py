@@ -80,7 +80,15 @@ def task_gates(worktree: pathlib.Path, change: str) -> str:
         lines.pop(0)
     while not lines[-1].strip():
         lines.pop()
-    return "".join(lines).rstrip("\n") + "\n"
+    gates = "".join(lines).rstrip("\n") + "\n"
+    # A baseline derived from the after count (less the new tests) reads like
+    # a run and is not one (#482); the builder compares against it.
+    if re.search(r"\(derived\b", gates, re.I) or not re.search(r"full[- ]suite(?:[^\n]*\n[ \t]+)*?[^\n]*\(measured\b", gates, re.I):
+        raise SystemExit(
+            f"{path}: the full-suite baseline in '## 0. Gates' must be run at the base and "
+            "marked in its bullet as '(measured, <seconds> s)', never derived from the after count"
+        )
+    return gates
 
 
 def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str,
