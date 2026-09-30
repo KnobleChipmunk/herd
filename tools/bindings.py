@@ -42,7 +42,7 @@ ADAPTERS = {"claude": {"binary": "claude", "status": ["claude", "auth", "status"
 PAIRS = (("builder", "build_reviewer"), ("lead", "plan_reviewer"), ("builder", "qa"), ("lead", "qa"))
 LOOP_ROLES = ("lead", "builder", "plan_reviewer", "build_reviewer")
 # What each adapter can honor today; anything else in a binding is rejected, never silently ignored.
-SUPPORTED = {"claude": {"harness", "model"}, "codex": {"harness", "model", "settings"},
+SUPPORTED = {"claude": {"harness", "model"}, "codex": {"harness", "model", "provider", "settings"},
              "pi": {"harness", "model", "provider"}}
 SETTINGS = {"codex": {"reasoning_effort"}}
 LOCAL_PROVIDERS = {"pi": {"ollama"}}  # a provider served on this machine needs no login
@@ -144,8 +144,10 @@ def probe_argv(b: dict) -> list[str]:
     if b["harness"] == "claude":
         return ["claude", "-p", "--model", b["model"], PROMPT]
     if b["harness"] == "codex":
-        return ["codex", "exec", "-m", b["model"]] + (["-c", f"model_reasoning_effort={effort}"] if effort else []) \
-            + [PROMPT]
+        # A Codex provider is a profile name in ~/.codex, e.g. one that points at a local server.
+        profile = ["--profile", b["provider"], "exec", "--skip-git-repo-check"] if b.get("provider") else ["exec"]
+        return ["codex"] + profile + ["-m", b["model"]] \
+            + (["-c", f"model_reasoning_effort={effort}"] if effort else []) + [PROMPT]
     return ["pi"] + (["--provider", b["provider"]] if b.get("provider") else []) + ["--model", b["model"], "-p", PROMPT]
 
 
@@ -155,7 +157,8 @@ def launch_args(b: dict) -> list[str]:
     if b["harness"] == "claude":
         return ["--model", b["model"]]
     if b["harness"] == "codex":
-        return ["-m", b["model"]] + (["-c", f"model_reasoning_effort={effort}"] if effort else [])
+        return (["--profile", b["provider"]] if b.get("provider") else []) + ["-m", b["model"]] \
+            + (["-c", f"model_reasoning_effort={effort}"] if effort else [])
     return (["--provider", b["provider"]] if b.get("provider") else []) + ["--model", b["model"]]
 
 

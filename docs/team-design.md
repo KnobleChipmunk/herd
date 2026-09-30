@@ -53,7 +53,7 @@ where they differ) or by the rules below.
 | Role | Inputs | Scope and authority | Evidence and return route |
 |---|---|---|---|
 | Orchestrator, Architect, Planner, Product intake, Release prep | the operator's goal, issues and comments, the code the spec touches, dogfood findings | inherits the lead rules in SKILL.md "Roles and hand-offs" and "Gates the user holds" | the openspec change with Grounded facts, pre-execution evidence, rulings in design.md; reports to the operator |
-| Builder | the approved spec, its briefing, one worktree | inherits "pi_build (builder)": only its worktree and allowed files; tests red first; no commit or push | the handoff (gates, full-suite tail, mutation log, unbacked claims); returns DONE or BLOCKED to the lead |
+| Builder | the approved spec, its briefing, one worktree | inherits "codex_build (builder)": only its worktree and allowed files; tests red first; no commit or push | the handoff (gates, full-suite tail, mutation log, unbacked claims); returns DONE or BLOCKED to the lead |
 | Plan reviewer | the spec files, the lead's pre-execution evidence, git blobs | inherits "Plan-reviewer brief": reads and reasons, never executes the plan or its tests | `PLAN-REVIEW-<id>-round-N.md`, APPROVE / REVISE, to the lead |
 | Build reviewer | the spec, the handoff, the candidate diff against its named base | inherits "codex_review (build reviewer)": runs fencecheck, the touched tests and two mutation re-drives on a scratch copy (`mutate.py --scratch`); edits nothing | `REVIEW-<id>-round-N.md`, FINDINGS / REVIEW CLEAN, to the builder; sign-off to the lead |
 | Test QA, Dogfood, Librarian | see the rules below | see the rules below | see the rules below |

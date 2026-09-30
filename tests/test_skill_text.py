@@ -86,3 +86,15 @@ def test_the_skill_points_at_the_catalog_the_cards_and_the_gates():
     assert "an evaluator (plan reviewer, build reviewer, QA) first gets a fresh context" in text
     assert "team.py assign" in roles and roles.index("team.py assign") < roles.index("team.py packet")
 
+
+
+def test_the_skill_keeps_machine_specifics_in_the_roster_and_bindings():
+    """A second operator runs this skill: the local builder model lives in the
+    Roster's example row and the bindings file, and push/merge workarounds
+    apply only when the session token lacks the scope."""
+    text = SKILL.read_text()
+    roster = text[text.index("## Roster"): text.index("## Before an unattended run")]
+    rest = text.replace(roster, "")
+    for personal in ("swift15", "/home/", "Exocortex", "Obsidian", "on this machine"):
+        assert personal not in rest, personal
+    assert "example" in paragraph(text, "Who plays each role")

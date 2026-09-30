@@ -1,4 +1,5 @@
 import json
+import pathlib
 import subprocess
 
 import pytest
@@ -204,3 +205,12 @@ def test_a_ledger_with_nothing_to_add_is_left_byte_identical(tmp_path):
     run = [ev("run-start"), ev("pr-opened", "420", pr="428", branch="fix/420")]
     librarian.append_rows(ledger, librarian.rows(run, "r", gh_states({"428": "MERGED"})))
     assert ledger.read_bytes() == before
+
+
+def test_the_vault_is_herd_vault_when_set(tmp_path):
+    assert librarian.vault({"HERD_VAULT": str(tmp_path), "HOME": "/h"}) == tmp_path
+
+
+def test_the_default_vault_is_the_xdg_data_dir_not_a_personal_one():
+    assert librarian.vault({"XDG_DATA_HOME": "/x", "HOME": "/h"}) == pathlib.Path("/x/herd")
+    assert librarian.vault({"HOME": "/h"}) == pathlib.Path("/h/.local/share/herd")

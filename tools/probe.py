@@ -51,6 +51,10 @@ def chain(roster: dict[str, dict], role: str) -> list[tuple[str, str]]:
 
 
 def probe_command(harness: str, model: str) -> list[str]:
+    profile = re.fullmatch(r"Codex, profile `([\w.-]+)`", harness)
+    if profile:
+        # A Codex profile reaches a local model; exec outside a trusted repo needs the skip.
+        return ["codex", "--profile", profile.group(1), "exec", "--skip-git-repo-check", "-m", model, PROMPT]
     if harness == "Codex":
         return ["codex", "exec", "-m", model, PROMPT]
     if harness == "Claude Code":

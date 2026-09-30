@@ -412,3 +412,9 @@ def test_a_scratch_worktree_with_a_change_not_on_main_is_kept_and_named(created,
     assert (f"KEPT worktree {trees / 'pre-421'}: differs from origin/main: notes.md, src/feature.py"
             in lines)
     assert "scratch/pre-421" in branches(main)
+
+
+def test_the_librarian_prompt_names_the_herd_checkout(tmp_path):
+    prompt = merge_stack.librarian_command(tmp_path)[4]
+    assert str(tmp_path) in prompt
+    assert f"<herd> is {pathlib.Path(merge_stack.__file__).resolve().parent.parent}" in prompt
