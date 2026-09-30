@@ -5,7 +5,7 @@ usage: mkbrief.py <id> <worktree> <branch> <base-desc> <change-name> <allowed-fi
 
 The lead pane defaults to $HERDR_PANE_ID (run this from the lead's pane); the
 reviewer defaults to the roster's build reviewer, codex_review, and the builder
-to pi_build.
+to its builder, codex_build (pass --builder pi_build for the pi fallback).
 """
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ def task_gates(worktree: pathlib.Path, change: str) -> str:
 
 def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str,
                    allowed: str, python: str, lead_pane: str, reviewer: str, has_xdist: bool,
-                   builder: str = "pi_build") -> str:
+                   builder: str = "codex_build") -> str:
     gate_text = task_gates(worktree, change)
     main = main_checkout(worktree)
     sha = base_sha(worktree, base)
@@ -269,7 +269,7 @@ def main(argv: list[str] | None = None) -> None:
         ap.add_argument(name)
     ap.add_argument("--lead-pane")
     ap.add_argument("--reviewer", default="codex_review")
-    ap.add_argument("--builder", default="pi_build")
+    ap.add_argument("--builder", default="codex_build")
     a = ap.parse_args(argv)
     w = pathlib.Path(a.worktree)
     python = find_python(w)

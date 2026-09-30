@@ -1,5 +1,6 @@
-# Example bindings: the machine herd was built on (Claude Code lead, a local
-# pi builder, Codex reviewers). Copy to ~/.config/herd/bindings.yaml and edit,
+# Example bindings: the machine herd was built on (Claude Code lead, a Codex
+# builder on a local model through its `swift15` profile, falling back to pi on
+# the same model; Codex reviewers). Copy to ~/.config/herd/bindings.yaml and edit,
 # or run `herd setup` (#39). This is an example, not a requirement.
 version: 1
 # Set to true to allow one short diagnostic request per binding (it may use quota).
@@ -9,9 +10,11 @@ roles:
     harness: claude
     model: claude-opus-5-5
   builder:
-    harness: pi
-    provider: ollama
-    model: swift15-qwen3.8-128k:latest
+    harness: codex
+    provider: swift15
+    model: swift15-codex
+    fallback:
+      - {harness: pi, provider: ollama, model: swift15-qwen3.8-128k:latest}
   plan_reviewer:
     harness: codex
     model: gpt-6-astra

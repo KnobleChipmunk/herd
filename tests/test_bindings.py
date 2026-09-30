@@ -401,3 +401,27 @@ def test_an_override_works_without_a_bindings_file_and_without_consent(repo_with
     assert "passed over claude fable: not-probed" in out and "NONE usable" in out
     assert seen == [False]
 
+
+
+LOCAL_CODEX = {"harness": "codex", "provider": "swift15", "model": "swift15-codex"}
+
+
+def test_a_codex_binding_reaches_a_local_model_through_its_profile():
+    # A Codex provider is a profile name in ~/.codex (its model_provider,
+    # e.g. a local server); the model is passed as usual.
+    assert bindings.validate({"version": 1, "roles": {"builder": LOCAL_CODEX}}) == []
+    assert bindings.probe_argv(LOCAL_CODEX) == [
+        "codex", "--profile", "swift15", "exec", "--skip-git-repo-check", "-m", "swift15-codex", bindings.PROMPT]
+    assert bindings.launch_args(LOCAL_CODEX) == ["--profile", "swift15", "-m", "swift15-codex"]
+
+
+def test_the_example_profile_builds_with_codex_and_falls_back_to_pi():
+    import yaml
+
+    import herdsetup
+
+    doc = yaml.safe_load(herdsetup.EXAMPLE.read_text())
+    builder = doc["roles"]["builder"]
+    assert (builder["harness"], builder["provider"], builder["model"]) == ("codex", "swift15", "swift15-codex")
+    assert [(f["harness"], f["model"]) for f in builder["fallback"]] == [("pi", "swift15-qwen3.8-128k:latest")]
+    assert bindings.validate(doc) == []
