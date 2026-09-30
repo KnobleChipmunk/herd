@@ -1,9 +1,9 @@
 ---
 name: herd
-description: Run the Herdr three-agent build loop — the lead (this session) orchestrates, pre-executes, and writes the openspec change, a local builder model (via pi) builds it in a worktree, a Codex build reviewer reviews round-robin until clean, and the lead runs the `reviewer` skill (audience: ai) as the final pass, then collects a skill retrospective from every agent. Use when the user says "/herd", "herd #N", "run the herd on <issue|goal>", or asks to build an issue with the local builder via Herdr. Requires HERDR_ENV=1. Subagents are replaced by a pane below this one — Codex for plan review, claude for every other role. Models per role are in the Roster table.
+description: Run the Herdr three-agent build loop — the lead (this session) orchestrates, pre-executes, and writes the openspec change, a local builder model (via the Codex CLI) builds it in a worktree, a Codex build reviewer reviews round-robin until clean, and the lead runs the `reviewer` skill (audience: ai) as the final pass, then collects a skill retrospective from every agent. Use when the user says "/herd", "herd #N", "run the herd on <issue|goal>", or asks to build an issue with the local builder via Herdr. Requires HERDR_ENV=1. Subagents are replaced by a pane below this one — Codex for plan review, claude for every other role. Models per role are in the Roster table.
 ---
 
-# Herd — the lead orchestrates, pi builds, Codex reviews
+# Herd — the lead orchestrates, a local model builds in Codex, Codex reviews
 
 This skill governs `/herd` runs. `~/.claude/DEVLOOP.md` governs delegated
 builds outside `/herd`; where the two differ (who authorizes the spec, the
@@ -38,7 +38,8 @@ a model in the machine's bindings file; keep this table synchronized for
 | Role | Harness | Model | Pane name | Falls back to |
 |---|---|---|---|---|
 | Lead | Claude Code | Opus 5.5 (`claude-opus-5-5`; Fable before 2026-09-25) | — (this session) | — |
-| Builder | pi | Swift 1.5 27B, local (`swift15-qwen3.8-128k:latest`, a Qwen 3.8 fine-tune) | `pi_build` | — |
+| Builder | Codex, profile `swift15` | Swift 1.5 27B, local (`swift15-codex` on llama-swap, a Qwen 3.8 fine-tune) | `codex_build` | Fallback builder |
+| Fallback builder | pi | Swift 1.5 27B, local (`swift15-qwen3.8-128k:latest`) | `pi_build` | — |
 | Plan reviewer | Codex | GPT-6 Astra (`gpt-6-astra`), high effort | `codex_plan_reviewer` | Build reviewer, Fallback reviewer |
 | Build reviewer | Codex | GPT-6 Sol (`gpt-6-sol`), high effort | `codex_review` | Fallback reviewer |
 | Fallback reviewer | Claude Code | Fable (`--model fable`), else Sonnet (`--model sonnet`); the aliases track the latest version | `claude_plan_reviewer` / `claude_review` | — |
@@ -56,6 +57,15 @@ a fallback runs, say so in the PR.
 Reviewers run in the Codex harness, not through pi. The #321 rule that ran
 every role through pi began as an 08-23 trial for the builder only; the
 reviewers moved with it and were never compared (2026-09-25).
+
+The builder runs in the Codex harness too, on the same local model pi ran
+(operator decision, 2026-09-30). On project-mera #482 and #380 it built five
+PRs, up to 264 steps across 47 files, each byte-identical to the lead's
+reference, at about three times pi's steps per minute. It needs
+`mkbrief.py --builder codex_build` (the sandbox list and the step file,
+#72), `--cd <worktree>` on start (herdr's `--cwd` does not reach Codex), and
+Enter after `/new` (Codex opens a checkout picker). pi stays the fallback,
+on the same model.
 
 Load the `herdr` skill first; the `herdr` CLI is the authority on syntax.
 `test "${HERDR_ENV:-}" = 1` or stop — this skill does not work outside Herdr.
@@ -169,7 +179,7 @@ asking the model.
 | Slot | Position | Agent | Name | Job |
 |---|---|---|---|---|
 | 0 | the calling pane | claude (lead) | — | user contact, spec, pre-execution, rulings, final review, commit |
-| 1 | top-right of the lead | pi (builder model) | `pi_build` | builder, in its own worktree |
+| 1 | top-right of the lead | codex (builder model, local profile) | `codex_build` | builder, in its own worktree |
 | 2 | bottom-right of the lead | codex (build reviewer model) | `codex_review` | build reviewer, round-robin with the builder |
 | 3 | below the lead | codex (plan reviewer model) for plan review, else claude | `codex_plan_reviewer` / `opus_<role>` | stands in for ANY subagent the lead would spawn; one occupant at a time |
 
@@ -187,13 +197,17 @@ the roster's models):
 herdr pane split --current --direction right --cwd "$PWD" --no-focus     # → slot 1 (read .result.pane.pane_id)
 herdr pane split --pane <slot1> --direction down --cwd "$PWD" --no-focus  # → slot 2
 herdr pane split --current --direction down --cwd "$PWD" --no-focus       # → slot 3
-herdr agent start pi_build            --kind pi    --pane <slot1> -- --provider ollama --model swift15-qwen3.8-128k:latest
+herdr agent start codex_build         --kind codex --pane <slot1> -- --profile swift15 --cd <worktree> -c check_for_update_on_startup=false
 herdr agent start codex_review        --kind codex --pane <slot2> -- -m gpt-6-sol -c model_reasoning_effort=high
 herdr agent start codex_plan_reviewer --kind codex --pane <slot3> -- -m gpt-6-astra -c model_reasoning_effort=high
 ```
 
-Status lines: pi reads `(ollama) swift15-qwen3.8-128k:latest • medium`;
-Codex shows the model and reasoning effort (its `tui.status_line` includes
+The builder starts per build with `--cd` set to that build's worktree: restart
+it (`/quit`, then `agent start`) for the next build. Status lines: the
+builder reads `Swift 1.5 27B (local) medium`; a pi fallback builder
+(`--kind pi -- --provider ollama --model swift15-qwen3.8-128k:latest`)
+reads `(ollama) swift15-qwen3.8-128k:latest • medium`; the reviewers' Codex
+shows the model and reasoning effort (its `tui.status_line` includes
 `model-with-reasoning`). The Codex CLI lists models the ChatGPT login
 refuses, so a listed model is not an available one. Before the first
 review of a run, and again after any refusal or usage-limit error mid-run,
@@ -397,7 +411,7 @@ structure only (#40).
 - **Retrospective, after all agents report DONE (#321).** Once the final
   review of the assignment's LAST PR is clean and that PR is pushed, and
   before the closing report:
-  prompt EACH live herd agent (`pi_build`, `codex_review`,
+  prompt EACH live herd agent (`codex_build`, `codex_review`,
   `codex_plan_reviewer`) with exactly — "What would you improve in the herd
   skill after this run? Reply with concrete, numbered items grounded in
   what you actually hit; write them to RETRO-<id>-<yourname>.md in the
@@ -420,7 +434,7 @@ structure only (#40).
   command, so the operator can still reopen a session after the panes are
   gone.
 
-**pi_build (builder).** Works ONLY in its worktree. Tests first, red,
+**codex_build (builder).** Works ONLY in its worktree. Tests first, red,
 then implementation, then gates (pytest + ruff + mypy + the spec's grep
 gate), then the mutation drives. Writes `HANDOFF-<id>.md`. Then:
 1. Prompts `codex_review` with the worktree path, spec path, handoff path,
@@ -459,12 +473,12 @@ lead:  pick + tier → measure gates → spec (text anchors)
        fold defects, regenerate fences, assert fence==file
      → codex_plan_reviewer (small: 1 round; full: until APPROVE; re-derive, never re-execute;
        disposition-numbered re-review prompts; re-execute after every fold)
-     → post the spec summary AND dispatch, same turn: worktree + briefing → prompt pi_build
+     → post the spec summary AND dispatch, same turn: worktree + briefing → prompt codex_build
        (prerequisite found mid-review? carve it out, loop it first, stack the branch)
-pi_build:  tests red → impl → gates → mutations → HANDOFF → review round 1
+codex_build: tests red → impl → gates → mutations → HANDOFF → review round 1
 codex_review: REVIEW-round-1 (FINDINGS: n; spec finding → builder BLOCKED → lead ruling)   ┐
-pi_build:  fix → gates → HANDOFF → round 2   ┘ … until REVIEW CLEAN (cap 2, +1 on ruling)
-codex_review: "REVIEW CLEAN" → lead;  pi_build: "DONE: …" → lead
+codex_build: fix → gates → HANDOFF → round 2   ┘ … until REVIEW CLEAN (cap 2, +1 on ruling)
+codex_review: "REVIEW CLEAN" → lead;  codex_build: "DONE: …" → lead
 lead:  diff build vs pre-executed reference → /reviewer (direct, audience: ai)
        findings? → builder fixes → gates → reviewer re-signs → DONE again → re-review the delta
        clean?    → commit on branch → push → open PR, same turn
@@ -702,7 +716,7 @@ committing.
   guarantees for edge cases the design explicitly traded away. Rule early.
 - Foreground `herdr … --wait` dies at the Bash 10-min cap and the wait is
   lost (#330, twice). Background it — see "Long agent turns" above (#321).
-- The builder (pi) may stop at an "Always allow /tmp/*" permission dialog on its first
+- A pi fallback builder may stop at an "Always allow /tmp/*" permission dialog on its first
   temp-file write; the pane shows `blocked`. Read with `--source visible`,
   `herdr agent send-keys pi_build enter`. Have the briefing's sed write
   into the worktree root instead of /tmp to avoid it.
