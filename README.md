@@ -48,10 +48,16 @@ The `/herd` skill and the toolkit it runs on.
 
 ## Install
 
+From the checkout:
+
 ```bash
-ln -s ~/projects/herd/skill ~/.claude/skills/herd
-ln -s ~/projects/herd/hermes/herd-librarian ~/.hermes/skills/herd-librarian
+ln -s "$PWD/skill" ~/.claude/skills/herd
+ln -s "$PWD/hermes/herd-librarian" ~/.hermes/skills/herd-librarian
 ```
+
+Then write your role bindings: `python3 tools/herdsetup.py assisted` (or copy
+`skill/profiles/example-claude-codex-pi.yaml`, one operator's setup, to
+`~/.config/herd/bindings.yaml` and edit it).
 
 `hermes/herd-librarian/` is the Hermes skill that files a finished run into
 the vault ledgers with `tools/librarian.py`. `merge_stack.py --apply`
@@ -73,6 +79,9 @@ at run time:
   --lead-pane`, else `$HERDR_PANE_ID`, so run it from the lead's pane.
 - **Build reviewer** pane: `mkbrief.py --reviewer`, default `codex_review`
   (the skill's Roster table).
+- **Vault** the librarian writes its ledgers to: `$HERD_VAULT`, else
+  `$XDG_DATA_HOME/herd` (`~/.local/share/herd`). Export it where
+  `merge_stack.py` runs, since the librarian inherits that environment.
 
 ## Design references
 

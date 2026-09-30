@@ -210,3 +210,8 @@ def test_a_finished_fold_starts_a_new_build_state(repo_with_worktree):
     gates.main(["fold", "done", "--issue", "40", "--repo", str(main)])
     assert gates.main(["suite-ok", "--issue", "40", "--repo", str(main)]) == 0
     assert gates.main(["suite-ok", "--issue", "41", "--repo", str(main)]) == 0  # issues are independent
+
+
+def test_the_emitted_step_file_is_coordination_not_a_change(build):
+    (build / "STEPS-7.json").write_text("[]\n")
+    assert gates.manifest(build, "main") == [("M", "src/a.py"), ("A", "src/new.py")]

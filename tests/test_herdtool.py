@@ -61,3 +61,60 @@ def test_mutate_env_keeps_node_on_the_path(monkeypatch, tmp_path):
     node.chmod(0o755)
     monkeypatch.setenv("PATH", f"{node.parent}:/usr/bin:/bin")
     assert str(node.parent) in herdtool.mutate_env()["PATH"].split(":")
+
+
+PLAN = '''
+TESTS = [
+    {"kind": "new_file", "path": "tests/test_new.py", "new": "def test_x():\\n    pass\\n", "why": "new"},
+]
+IMPL = [
+    {"kind": "insert_before", "path": "src/anchor.py", "old": "extra", "new": "2 * ", "why": "mid-line insert"},
+    {"kind": "replace", "path": "src/inline.py", "old": "compute(a, b)", "new": "compute(a, b, c)",
+     "why": "mid-line replace"},
+    {"kind": "append", "path": "src/append.py", "new": "\\n\\ny = 2\\n", "why": "append"},
+]
+MUTATIONS = []
+'''
+
+
+def test_emit_steps_writes_exact_bytes_a_builder_can_apply_without_the_markdown(tmp_path, monkeypatch):
+    """A fence always ends with a newline, so a mid-line fragment cannot be read back
+    exactly from tasks.md; the JSON comes from the plan and keeps the exact bytes."""
+    plan = tmp_path / "plan.py"
+    plan.write_text(PLAN)
+    out = tmp_path / "STEPS-42.json"
+    monkeypatch.setattr(sys, "argv", ["herdtool.py", str(plan), "emit-steps", str(out)])
+    herdtool.main()
+
+    import json
+    steps = json.loads(out.read_text())
+    assert [(s["name"], s["kind"], s["path"]) for s in steps] == [
+        ("T1", "new_file", "tests/test_new.py"),
+        ("I1", "insert_before", "src/anchor.py"),
+        ("I2", "replace", "src/inline.py"),
+        ("I3", "append", "src/append.py"),
+    ]
+    assert steps[1]["old"] == "extra" and steps[1]["new"] == "2 * "
+    assert steps[0]["old"] is None
+
+    base = {"src/anchor.py": "total = base + extra\n", "src/inline.py": "value = compute(a, b) + 1\n",
+            "src/append.py": "x = 1\n"}
+    for tree in (tmp_path / "from_json", tmp_path / "from_plan"):
+        for rel, body in base.items():
+            (tree / rel).parent.mkdir(parents=True, exist_ok=True)
+            (tree / rel).write_text(body)
+    for s in steps:
+        herdtool.apply_step(tmp_path / "from_json", s)
+    mod = herdtool.load(str(plan))
+    for s in mod.TESTS + mod.IMPL:
+        herdtool.apply_step(tmp_path / "from_plan", s)
+    for rel in [*base, "tests/test_new.py"]:
+        assert (tmp_path / "from_json" / rel).read_text() == (tmp_path / "from_plan" / rel).read_text(), rel
+    assert (tmp_path / "from_json" / "src/anchor.py").read_text() == "total = base + 2 * extra\n"
+
+
+@pytest.mark.parametrize("name", ["librarian.py", "merge_stack.py"])
+def test_no_librarian_tool_defaults_to_a_personal_path(name):
+    text = (pathlib.Path(herdtool.__file__).parent / name).read_text()
+    for banned in ("/home/", "~/projects", "Exocortex", "Obsidian"):
+        assert banned not in text, (name, banned)

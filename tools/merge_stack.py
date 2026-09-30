@@ -206,7 +206,8 @@ def unmerged_changes(main: pathlib.Path, worktree: pathlib.Path) -> list[str]:
 
 
 def librarian_command(main: pathlib.Path) -> list[str]:
-    return ["hermes", "-s", "herd-librarian", "-z", f"Run the herd-librarian skill for the repo {main}."]
+    herd = pathlib.Path(__file__).resolve().parent.parent
+    return ["hermes", "-s", "herd-librarian", "-z", f"Run the herd-librarian skill for the repo {main}; <herd> is {herd}."]
 
 
 def launch(cmd: list[str], log: pathlib.Path) -> int:

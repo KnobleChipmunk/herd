@@ -159,7 +159,7 @@ def test_reviewer_prompt_re_drives_two_mutations_on_a_scratch_copy(repo_with_wor
 
 
 def test_builder_and_reviewer_log_friction_to_the_run_log_under_their_own_names(repo_with_worktree):
-    _, wt, briefing, prompt = brief(repo_with_worktree, reviewer="codex_review")
+    _, wt, briefing, prompt = brief(repo_with_worktree, reviewer="codex_review", builder="pi_build")
     assert (f'python3 {mkbrief.RUNLOG} add friction --repo {wt} --issue 42 --agent pi_build --text "<what cost you'
             in briefing)
     assert (f'python3 {mkbrief.RUNLOG} add friction --repo {wt} --issue 42 --agent codex_review --text "<what cost'
@@ -266,7 +266,6 @@ def test_gate_section_respects_fenced_headings_and_stops_at_next_section(repo_wi
     assert mkbrief.task_gates(wt, "fix-x") == "    " + MEASURED
 
 
-
 @pytest.mark.parametrize("baseline", [
     "- Full suite at the base → `510 passed`.\n",
     "- Full suite at the base → `510 passed` (derived: 513 after, less 3 new tests).\n",
@@ -303,3 +302,59 @@ def test_a_measured_mark_in_a_later_bullet_does_not_count(repo_with_worktree):
     write_tasks(wt, "# Plan\n\n## 0. Gates\n\n" + body + "\n## 1. Tests first\n")
     with pytest.raises(SystemExit, match=r"full-suite baseline"):
         mkbrief.task_gates(wt, "fix-x")
+
+
+def test_the_builder_logs_friction_under_the_name_it_is_given(repo_with_worktree):
+    _, wt, briefing, _ = brief(repo_with_worktree, builder="codex_build")
+    assert "--issue 42 --agent codex_build --text" in briefing
+    assert "--agent pi_build" not in briefing
+
+
+def test_a_codex_builder_gets_one_escalation_bullet_per_command_class(repo_with_worktree):
+    _, _, briefing, _ = brief(repo_with_worktree, builder="codex_build")
+    assert mkbrief.CODEX_BUILDER_SANDBOX in briefing
+    bullets = [ln.strip() for ln in mkbrief.CODEX_BUILDER_SANDBOX.splitlines()[1:] if ln.strip().startswith("- ")]
+    for command in ("pytest", "full suite", "network", "mutate.py", "dispatch.py", "herdr agent prompt"):
+        hits = [b for b in bullets if command in b]
+        assert len(hits) == 1 and "OUTSIDE the sandbox" in hits[0], command
+    assert "timeout 900" in mkbrief.CODEX_BUILDER_SANDBOX
+
+
+def test_a_pi_builder_gets_no_sandbox_rule(repo_with_worktree):
+    _, _, briefing, _ = brief(repo_with_worktree, builder="pi_build")
+    assert mkbrief.CODEX_BUILDER_SANDBOX not in briefing
+    assert "--issue 42 --agent pi_build --text" in briefing
+
+
+def test_the_builder_applies_steps_from_the_emitted_json_when_the_lead_wrote_one(repo_with_worktree):
+    _, wt, without, _ = brief(repo_with_worktree)
+    assert "STEPS-42.json" not in without
+    (wt / "STEPS-42.json").write_text("[]\n")
+    _, _, briefing, _ = brief(repo_with_worktree)
+    assert "`STEPS-42.json`" in briefing
+    assert "never copy fence text out of tasks.md" in briefing
+
+
+def test_main_passes_the_builder_name_through(repo_with_worktree, tmp_path, monkeypatch):
+    _, wt = repo_with_worktree
+    monkeypatch.setenv("HERDR_PANE_ID", "w5:p5A")
+    monkeypatch.setenv("HERD_PYTHON", sys.executable)
+    write_tasks(wt)
+    allowed = tmp_path / "allowed.txt"
+    allowed.write_text("  - src/x.py\n")
+    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(allowed), "--builder", "codex_build"])
+    assert "--agent codex_build" in (wt / "BUILD-BRIEFING-42.md").read_text()
+
+
+def test_the_default_builder_is_the_codex_builder_with_its_sandbox_list(repo_with_worktree, tmp_path, monkeypatch):
+    # The roster's builder is Codex on the local profile (2026-09-30); the
+    # command line's default names it, so its briefing carries the sandbox list.
+    main, wt = repo_with_worktree
+    write_tasks(wt)
+    allowed = tmp_path / "allowed.txt"
+    allowed.write_text("  - src/x.py\n")
+    monkeypatch.setenv("HERDR_PANE_ID", "w9:p9Z")
+    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(allowed)])
+    briefing = (wt / "BUILD-BRIEFING-42.md").read_text()
+    assert "--issue 42 --agent codex_build --text" in briefing
+    assert mkbrief.CODEX_BUILDER_SANDBOX in briefing
