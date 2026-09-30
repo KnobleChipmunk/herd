@@ -311,6 +311,17 @@ def test_a_measured_mark_in_a_later_bullet_does_not_count(repo_with_worktree):
         mkbrief.task_gates(wt, "fix-x")
 
 
+def test_handoff_carries_a_match_line_for_every_pytest_count_gate(repo_with_worktree):
+    # Two builders (pi on #333, Codex on #482) read the pytest counts off a
+    # saved tail and ran the tool only for the grep gates; the handoff item
+    # scoped the tool line to grep gates.
+    _, _, briefing, _ = brief(repo_with_worktree)
+    handoff = briefing[briefing.index("## Handoff"):]
+    item = handoff[handoff.index("\n4. "):handoff.index("\n5. ")]
+    assert f"python3 {mkbrief.GATES} match" in item
+    assert "every pytest count gate" in item and "MATCH line" in item
+
+
 def test_the_builder_logs_friction_under_the_name_it_is_given(repo_with_worktree):
     _, wt, briefing, _ = brief(repo_with_worktree, builder="codex_build")
     assert "--issue 42 --agent codex_build --text" in briefing
