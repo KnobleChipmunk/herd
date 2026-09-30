@@ -1,6 +1,6 @@
 # Proposal: pytest COUNT gates are verified by reading saved tails, not by a tool match line
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/74
+Status: applied https://github.com/KnobleChipmunk/herd/pull/74 2026-09-30
 
 ## Class
 

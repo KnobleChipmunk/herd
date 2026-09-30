@@ -1,6 +1,6 @@
 # Proposal: briefing's out-of-sandbox escalation line is missing or misread by the Codex builder
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/72
+Status: applied https://github.com/KnobleChipmunk/herd/pull/72 2026-09-30
 
 ## Class
 

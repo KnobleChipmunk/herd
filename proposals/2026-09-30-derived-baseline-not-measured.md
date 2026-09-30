@@ -1,6 +1,6 @@
 # Proposal: full-suite baseline derived by subtraction from the after count instead of run
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/75
+Status: applied https://github.com/KnobleChipmunk/herd/pull/75 2026-09-30
 
 ## Class
 

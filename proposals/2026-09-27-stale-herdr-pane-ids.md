@@ -1,6 +1,6 @@
 # Stale HERDR pane/tab IDs on resumed sessions
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/76
+Status: applied https://github.com/KnobleChipmunk/herd/pull/76 2026-09-30
 
 ## Class: stale-herdr-pane-ids (inherited HERDR pane/tab IDs are stale on resume)
 

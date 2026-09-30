@@ -1,6 +1,6 @@
 # Proposal: lead shell conventions (zsh word-splitting, backgrounded herdr prompts) cost retries
 
-Status: in-pr https://github.com/KnobleChipmunk/herd/pull/77
+Status: applied https://github.com/KnobleChipmunk/herd/pull/77 2026-09-30
 
 ## Class
 
