@@ -361,8 +361,12 @@ structure only (#40).
   has a prerequisite, the baseline is the PREREQUISITE's measured state,
   re-measured whenever the prerequisite changes. Include the full-suite
   wall time so the builder does not read a 5-min run as a hang. The
-  full-suite baseline is RUN at the base, in the background at the start of
-  pre-execution, and its line says `(measured, <seconds> s)`: never the
+  full-suite baseline is RUN at the base, in its own clean worktree cut from
+  the base commit (`base-<id>`), never in the pre-execution tree or any
+  worktree you will edit: the suite reads files at run time, so an edit
+  during the run contaminates it (#459-4, #334). It runs in the background
+  at the start of pre-execution, and its line says
+  `(measured, <seconds> s)`: never the
   after count less the new tests (#482). `mkbrief.py` refuses a gates
   section without that mark, or with `(derived`.
 - **Prerequisite carve-out (#321).** When review or pre-execution finds a
