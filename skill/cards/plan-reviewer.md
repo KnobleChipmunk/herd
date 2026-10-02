@@ -20,6 +20,8 @@ Every spec; on the small tier one round, on the full tier until APPROVE.
 
 Spends effort on what execution cannot catch: re-derive fixture arithmetic, challenge design conventions and boundary cases, check that every text anchor resolves once, and that every gate is a measured literal with its baseline.
 
+For every output field whose set of values the plan changes (a status code, a status or stage string, an enum, a `found` flag), grep its branching callers and fill one table row each: `caller file:line → branch taken → intended?`. Reader tests alone cannot show a consumer's effect (#380-4, #334). A changed discriminator whose table cannot be filled is REVISE.
+
 When a rule is extracted, reformatted, or rewritten, compare its actor, action, scope, and authorization condition against the source skill. Check tightened prohibitions as well as relaxed permissions. Require a focused assertion of the surviving authorization condition before approving the plan; cite an existing assertion when it already covers the rewritten rule.
 
 For each changed direct citation or computed input, ask whether its source can display a value outside the output metric's cap or window (a raid-wide tab cell reading 150% cited by an uptime capped at 100). When it can, require one negative-boundary case through that citation before approving (#380-4).
