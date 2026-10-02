@@ -228,6 +228,15 @@ def test_plan_review_preserves_authorization_conditions():
     assert "authority-rule check in `skill/cards/plan-reviewer.md`" in skill
 
 
+def test_the_plan_reviewer_traces_every_changed_discriminator_into_its_callers():
+    # Proposal boundary-tests-miss-downstream-contract (#380-4, #334): boundary
+    # tests passed while a downstream contract rejected the new output.
+    card = " ".join((SKILL_DIR / "cards/plan-reviewer.md").read_text().split())
+    assert "For every output field whose set of values the plan changes" in card
+    assert "`caller file:line → branch taken → intended?`" in card
+    assert "A changed discriminator whose table cannot be filled is REVISE." in card
+
+
 def test_plan_template_accounts_for_requirements_and_command_callers():
     import yaml
 
