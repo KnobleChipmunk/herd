@@ -336,7 +336,12 @@ structure only (#40).
   test observed. Defects found here (wrong anchors, wrong expected
   values, contract tests the plan missed) are folded into the spec before
   any reviewer sees it. After every fold round, RE-execute what changed
-  and re-drive affected mutations.
+  and re-drive affected mutations. Before pre-execution, grep the repo for
+  an existing implementation of every helper the plan adds or extracts
+  (CLAUDE.md, One copy), and record each match with its disposition in the
+  proposal: reuse, hoist in a prerequisite PR, or exclude with a stated
+  behavioural difference. #502 found two duplicates after plan review, and
+  each cost a prerequisite PR and a rebuilt stack.
 - **Fences are generated, never hand-edited (#321).** The big code fences
   in tasks.md (new files, full test files) are REGENERATED from the
   verified scratch-worktree files after every fold, and byte-parity

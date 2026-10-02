@@ -251,3 +251,14 @@ def test_the_plan_reviewer_checks_every_changed_citation_against_the_output_cap(
     assert "For each changed direct citation or computed input" in card
     assert "display a value outside the output metric's cap or window" in card
     assert "one negative-boundary case through that citation" in card
+
+
+def test_every_new_helper_has_a_one_copy_disposition_before_dispatch():
+    # Proposal duplicate-mechanism-late-finding (project-mera #502): two
+    # duplicates surfaced after plan review, each costing a prerequisite PR.
+    card = " ".join((SKILL_DIR / "cards/plan-reviewer.md").read_text().split())
+    assert "For each helper the plan adds or extracts, name the existing implementation" in card
+    assert "reuse, hoist in a prerequisite PR, or exclude with a stated behavioural difference" in card
+    assert "A new helper without a disposition is REVISE." in card
+    skill = " ".join((SKILL_DIR / "SKILL.md").read_text().split())
+    assert "Before pre-execution, grep the repo for an existing implementation of every helper" in skill
