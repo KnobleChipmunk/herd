@@ -118,3 +118,64 @@ def test_no_librarian_tool_defaults_to_a_personal_path(name):
     text = (pathlib.Path(herdtool.__file__).parent / name).read_text()
     for banned in ("/home/", "~/projects", "Exocortex", "Obsidian"):
         assert banned not in text, (name, banned)
+
+
+def _render(tmp_path, monkeypatch, capsys, plan_text):
+    plan = tmp_path / "plan.py"
+    plan.write_text(plan_text)
+    monkeypatch.setattr(sys, "argv", ["herdtool.py", str(plan), "render", str(tmp_path)])
+    herdtool.main()
+    return capsys.readouterr().out
+
+
+READBACK_PLAN = PLAN.replace(
+    "MUTATIONS = []",
+    "MUTATIONS = [('M1 sign', 'src/inline.py', 'compute(a, b)', 'compute(b, a)', 'tests/t.py::k')]",
+)
+
+
+def test_render_prints_a_tasks_md_that_reads_back_as_the_plan(tmp_path, monkeypatch, capsys):
+    out = _render(tmp_path, monkeypatch, capsys, READBACK_PLAN)
+
+    assert [s["name"] for s in herdtool.parse_tasks(out)] == ["T1", "I1", "I2", "I3"]
+    assert [m["name"] for m in herdtool.parse_mutations(out)] == ["M1 sign"]
+
+
+def test_render_refuses_a_tasks_md_the_builder_would_read_differently(tmp_path, monkeypatch, capsys):
+    # Proposal mutation-name-parse-mismatch (project-mera #502): what the
+    # builder parses from tasks.md is parsed back by the lead before dispatch.
+    # Here a test file's body carries a line shaped like a mutation heading.
+    plan = READBACK_PLAN.replace(
+        '"new": "def test_x():\\n    pass\\n"',
+        '"new": "- [ ] **M9** in `src/x.py`: replace\\n"',
+    )
+    assert plan != READBACK_PLAN
+
+    with pytest.raises(SystemExit) as exc:
+        _render(tmp_path, monkeypatch, capsys, plan)
+
+    assert str(exc.value).startswith("render: the rendered tasks.md does not parse: AttributeError")
+    assert capsys.readouterr().out == ""
+
+
+def test_render_refuses_a_tasks_md_whose_drives_read_back_by_other_names(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(herdtool, "parse_mutations", lambda text: [{"name": "M1"}])
+
+    with pytest.raises(SystemExit) as exc:
+        _render(tmp_path, monkeypatch, capsys, READBACK_PLAN)
+
+    assert str(exc.value) == (
+        "render: the rendered tasks.md reads back with mutations ['M1'], the plan has ['M1 sign']"
+    )
+    assert capsys.readouterr().out == ""
+
+
+def test_render_refuses_a_tasks_md_whose_steps_read_back_differently(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(herdtool, "parse_tasks", lambda text: [{"name": "T1"}])
+
+    with pytest.raises(SystemExit) as exc:
+        _render(tmp_path, monkeypatch, capsys, READBACK_PLAN)
+
+    assert str(exc.value) == (
+        "render: the rendered tasks.md reads back with steps ['T1'], the plan has ['T1', 'I1', 'I2', 'I3']"
+    )
