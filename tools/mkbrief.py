@@ -132,7 +132,7 @@ Branch `{branch}`, cut from {base} ({sha}). Do NOT touch `{main}`
 
 - Python: `{python}` — every python/pytest/mypy command is run from the worktree
   root and prefixed `PYTHONPATH=src`, e.g.
-  `PYTHONPATH=src {python} -m pytest <touched test file> -q --no-header`
+  `PYTHONPATH=src {python} -B -m pytest <touched test file> -q --no-header -p no:cacheprovider`
 - ruff is on PATH. Linter caches cannot be written inside the worktree, so prefix
   every ruff and mypy command with the cache locations:
   `{cache_env(id)} ruff check <paths>` and
@@ -257,6 +257,7 @@ CODEX_BUILDER_SANDBOX = """- Sandbox (Codex): request escalated permissions on t
   - Every mutate.py drive: OUTSIDE the sandbox.
   - Every dispatch.py call to the reviewer: OUTSIDE the sandbox.
   - Every `herdr agent prompt` to the lead: OUTSIDE the sandbox.
+  - Every `gates.py suite-ok` and `gates.py fold` call: OUTSIDE the sandbox; it writes the shared herd state under the repo's git directory.
 """
 
 
@@ -275,7 +276,7 @@ Lead rulings in force: RULINGS_PLACEHOLDER
 {sandbox}
 Do this:
 1. Read the spec, then the handoff, then the diff.
-2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -m pytest <touched test files> -q --no-header`, plus the ruff, mypy and grep gates in tasks.md, each ruff and mypy command prefixed `{cache_env(id)}`. Record the commands and their last lines.
+2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -B -m pytest <touched test files> -q --no-header -p no:cacheprovider`, plus the ruff, mypy and grep gates in tasks.md, each ruff and mypy command prefixed `{cache_env(id)}`. Record the commands and their last lines.
 3. Check the build against tasks.md: the fences are byte-exact reference text, so run `python3 {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — a line starting `{fencecheck.OK}` (it prints `{fencecheck.OK} (<n> steps)`) is success, and every other line it prints is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; root files matching {", ".join(f"`{p}`" for p in gates.COORDINATION)} are coordination files, and `openspec/changes/{change}/` is the change's own spec copy, allowed by the ALLOWED file: neither is a finding.
 4. Re-drive two mutations of your choice on a scratch copy, which never touches the build: `python3 {MUTATE} {w}/openspec/changes/{change}/tasks.md {w} --scratch --only <name>,<name>`. A result that differs from the handoff's mutation log is a finding.
 5. If a CONFIRMED finding requires changing a byte-exact fence, tag it "in the fence"; never mark it FOLDED while unresolved. These unresolved findings prevent REVIEW CLEAN. Count all unresolved confirmed findings and end with `FINDINGS: <n> (spec)` when any are in the fence.
