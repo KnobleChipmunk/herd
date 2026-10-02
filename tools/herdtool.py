@@ -367,6 +367,28 @@ def parse_tasks(text: str) -> list[dict]:
     return steps
 
 
+def readback_problem(plan, text: str) -> str | None:
+    """Why a rendered tasks.md would not read back as `plan`, or None.
+
+    The builder's tools parse the same text (parse_tasks, and mutate.py's
+    parse_mutations), so a step or a drive they would see differently is
+    caught here, before dispatch, rather than by the builder (#502).
+    """
+    want_steps = [f"T{i}" for i in range(1, len(plan.TESTS) + 1)] + [
+        f"I{i}" for i in range(1, len(plan.IMPL) + 1)]
+    want_muts = [m[0] for m in plan.MUTATIONS]
+    try:
+        steps = [s["name"] for s in parse_tasks(text)]
+        muts = [m["name"] for m in parse_mutations(text)]
+    except Exception as exc:  # noqa: BLE001 — any parse failure is the finding
+        return f"the rendered tasks.md does not parse: {type(exc).__name__}: {exc}"
+    if steps != want_steps:
+        return f"the rendered tasks.md reads back with steps {steps}, the plan has {want_steps}"
+    if muts != want_muts:
+        return f"the rendered tasks.md reads back with mutations {muts}, the plan has {want_muts}"
+    return None
+
+
 def steps_json(plan) -> list[dict]:
     """Every T/I step with its exact bytes. A rendered fence always ends with a
     newline, so a mid-line fragment cannot be read back exactly from tasks.md;
@@ -399,12 +421,18 @@ def main() -> None:
         out.write_text(json.dumps(steps, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
         print("wrote", len(steps), "steps to", out)
     elif cmd == "render":
-        print("## 1. Tests first (expect RED)\n")
-        print(render_steps(plan.TESTS, 1, "T"))
-        print("\n## 2. Implementation (expect GREEN)\n")
-        print(render_steps(plan.IMPL, 1, "I"))
-        print("\n## 3. Mutation drives (each must be KILLED; restore the file after each)\n")
-        print(render_mutations(plan.MUTATIONS), end="")
+        text = (
+            "## 1. Tests first (expect RED)\n\n"
+            + render_steps(plan.TESTS, 1, "T")
+            + "\n\n## 2. Implementation (expect GREEN)\n\n"
+            + render_steps(plan.IMPL, 1, "I")
+            + "\n\n## 3. Mutation drives (each must be KILLED; restore the file after each)\n\n"
+            + render_mutations(plan.MUTATIONS)
+        )
+        problem = readback_problem(plan, text)
+        if problem:
+            raise SystemExit(f"render: {problem}")
+        print(text, end="")
     else:
         raise SystemExit(f"unknown command {cmd}")
 
