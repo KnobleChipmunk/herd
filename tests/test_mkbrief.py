@@ -46,7 +46,7 @@ def test_reviewer_prompt_signs_off_to_the_lead_pane(repo_with_worktree):
 def test_briefing_and_prompt_use_the_given_python(repo_with_worktree):
     _, _, briefing, prompt = brief(repo_with_worktree, python="/venvs/x/bin/python")
     assert "`/venvs/x/bin/python`" in briefing
-    assert "PYTHONPATH=src /venvs/x/bin/python -m pytest" in prompt
+    assert "PYTHONPATH=src /venvs/x/bin/python -B -m pytest" in prompt
 
 
 def test_reviewer_prompt_runs_the_fence_checker_instead_of_reading_fences_by_eye(repo_with_worktree):
@@ -404,3 +404,25 @@ def test_the_handoff_carries_the_pre_fold_red_with_a_disclosure(repo_with_worktr
     _, _, briefing, _ = brief(repo_with_worktree)
     assert ("After a lead fold, keep the pre-fold RED tails and add one line saying "
             "they were not re-observed after the fold") in " ".join(briefing.split())
+
+
+def test_generated_pytest_commands_write_nothing_into_the_worktree(repo_with_worktree):
+    # Proposal sandbox-write-blocked (project-mera #502p0): the reviewer's
+    # touched-file run wrote pytest's cache and bytecode into a worktree the
+    # sandbox keeps read-only. Every generated pytest command writes neither.
+    _, _, briefing, prompt = brief(repo_with_worktree)
+    assert "`PYTHONPATH=src /py/bin/python -B -m pytest <touched test file> -q --no-header -p no:cacheprovider`" in briefing
+    assert "PYTHONPATH=src /py/bin/python -B -m pytest <touched test files> -q --no-header -p no:cacheprovider`" in prompt
+    for text in (briefing, prompt):
+        for line in text.splitlines():
+            if "-m pytest" in line:
+                assert "-B -m pytest" in line and "-p no:cacheprovider" in line, line
+
+
+def test_the_codex_builder_runs_the_state_writing_gates_outside_the_sandbox():
+    # Proposal sandbox-write-blocked (project-mera #502): suite-ok writes the
+    # repo's shared herd state under the git directory, outside the worktree.
+    assert (
+        "  - Every `gates.py suite-ok` and `gates.py fold` call: OUTSIDE the sandbox; "
+        "it writes the shared herd state under the repo's git directory.\n"
+    ) in mkbrief.CODEX_BUILDER_SANDBOX
