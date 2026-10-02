@@ -1,6 +1,6 @@
 # baseline-suite-contaminated-by-edits — measure the baseline in its own clean worktree
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/93
 
 ## Class
 

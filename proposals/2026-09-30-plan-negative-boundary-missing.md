@@ -1,6 +1,6 @@
 # plan-negative-boundary-missing — enumerate every validation/filter condition and test both sides of it
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/96
 
 ## Class
 

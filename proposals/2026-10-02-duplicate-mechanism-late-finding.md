@@ -1,6 +1,6 @@
 # duplicate-mechanism-late-finding
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/94
 
 ## Class
 

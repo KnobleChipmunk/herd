@@ -1,6 +1,6 @@
 # boundary-tests-miss-downstream-contract — trace changed discriminators into branching callers at plan review
 
-Status: accepted
+Status: in-pr https://github.com/KnobleChipmunk/herd/pull/95
 
 ## Class
 
