@@ -33,3 +33,6 @@ No `grounded-facts-query-bypasses-consumer-path` events in the next run's
 friction lines; the sweep's live-data verifier outputs per-actor counts from
 the consumer's own fetch function, and the plan reviewer's evidence table
 cites the consumer's code path, not a raw table query.
+
+## Grading
+- 2026-10-02: held

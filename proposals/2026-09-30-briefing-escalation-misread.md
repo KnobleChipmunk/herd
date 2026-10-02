@@ -34,3 +34,6 @@ No `briefing-escalation-misread` events in the next run's friction lines; a
 Codex builder runs the full suite outside the sandbox on the first attempt,
 the ~15-min sandbox timeout does not recur, and the lead no longer adds the
 escalation note to the dispatch prompt by hand.
+
+## Grading
+- 2026-10-02: held

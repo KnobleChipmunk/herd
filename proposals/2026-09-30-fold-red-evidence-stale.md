@@ -1,6 +1,6 @@
 # fold-red-evidence-stale
 
-Status: accepted
+Status: applied https://github.com/KnobleChipmunk/herd/pull/84 2026-09-30
 
 ## Class
 
@@ -32,3 +32,6 @@ re-observation the checklist demands is a scratch run the lead already runs.
 The next run's handoff RED section is either a fresh post-fold tail or the
 pre-fold tail with an explicit disclosure line, and the section-0 gate's
 expected count matches the handoff's recorded RED on first read.
+
+## Grading
+2026-10-02: missed — #502 plan reviewer: after P0 and H shifted bases, dependent briefs kept stale citations, a stale roster line range, and mutation claims absent from the list (found in rounds 5 and 2).

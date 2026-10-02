@@ -28,3 +28,6 @@ transcripts show a single scripted dispatch+wait step and no follow-up manual
 2026-09-27: held
 2026-09-29: held
 - 2026-09-30: held
+
+## Grading
+- 2026-10-02: held

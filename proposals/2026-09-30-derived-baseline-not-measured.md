@@ -31,3 +31,6 @@ No `derived-baseline-not-measured` events in the next run's friction lines;
 the briefing's full-suite baseline carries a `measured` provenance and a real
 tail from a run at HEAD, and the plan reviewer no longer has to flag a
 subtracted base count.
+
+## Grading
+- 2026-10-02: held

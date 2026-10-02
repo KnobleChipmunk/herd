@@ -1,6 +1,6 @@
 # readonly-worktree-cache-dir
 
-Status: accepted
+Status: applied https://github.com/KnobleChipmunk/herd/pull/82 2026-09-30
 
 ## Class
 
@@ -29,3 +29,6 @@ recurred, so this belongs in code.
 
 No readonly-worktree-cache-dir events in the next run's friction lines:
 first-attempt ruff and mypy runs succeed in every pane.
+
+## Grading
+2026-10-02: missed — #502p0 codex_review friction: read-only sandbox cache failures cost ~2 min (first-attempt cache writes failed again).

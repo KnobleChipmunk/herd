@@ -14,3 +14,6 @@ Add a resume rule to the lead section of `skill/SKILL.md`: after resuming a sess
 ## Prediction
 
 The next run's friction lines show no `stale-herdr-pane-ids` events, and a resumed run's first split succeeds on the first attempt without a discovery retry.
+
+## Grading
+- 2026-10-02: held
