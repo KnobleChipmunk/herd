@@ -1,11 +1,12 @@
 """Drive the mutations in a tasks.md against a build worktree.
 
-usage: mutate.py <tasks.md> <worktree> [--only M1,M3] [--scratch]
+usage: mutate.py <tasks.md> <worktree> [--only "<full name>,<full name>"] [--scratch]
 
 Prints one line per mutation (KILLED with the failing test, SURVIVED, or
 VOID when its anchor does not occur exactly once) and a TREE CHANGED line if
 the worktree's git status differs after the drives. Exits 1 on any of those,
-2 when tasks.md has no mutations. --scratch drives a copy of the worktree, so
+2 when tasks.md has no mutations or --only names one it does not have
+(the names are the full section-3 labels; the refusal lists them). --scratch drives a copy of the worktree, so
 a reviewer can re-drive mutations without touching the build. Refuses to run
 while a pytest process is working in the worktree.
 """
@@ -83,6 +84,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no mutations found in {a.tasks}")
         return 2
     only = set(a.only.split(",")) if a.only else None
+    names = [m["name"] for m in parse_mutations(text)]
+    unknown = sorted(only - set(names)) if only else []
+    if unknown:
+        # A name that matches nothing would drive nothing and exit 0, which
+        # reads as a clean drive; the labels are the full section-3 names.
+        print("--only names no mutation in this tasks.md: " + ", ".join(unknown))
+        for name in names:
+            print(f"available: {name}")
+        return 2
     lines, failures = drive(text, pathlib.Path(a.worktree), only=only, scratch=a.scratch)
     for ln in lines:
         print(ln)

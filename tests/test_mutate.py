@@ -164,6 +164,20 @@ def test_main_exits_nonzero_when_anything_survives(build, capsys):
     assert "M1 KILLED" in out and "M2 SURVIVED" in out
 
 
+def test_main_refuses_an_only_name_it_does_not_know_and_lists_the_names(build, capsys):
+    # Proposal mutation-only-full-name (project-mera #502): `--only M1,M9` matched
+    # no full label and exited 0 with no output, which read as a clean drive.
+    tasks = build / "SCRATCH-tasks.md"
+    tasks.write_text(render_tasks([("M1 swap the sign", *MUTATIONS[0][1:]), ("M2 add zero", *MUTATIONS[1][1:])]))
+
+    assert mutate.main([str(tasks), str(build), "--only", "M1 swap the sign,M2"]) == 2
+
+    out = capsys.readouterr().out.splitlines()
+    assert out[0] == "--only names no mutation in this tasks.md: M2"
+    assert out[1:] == ["available: M1 swap the sign", "available: M2 add zero"]
+    assert "KILLED" not in "\n".join(out)
+
+
 def test_main_with_no_mutations_is_an_error(build, capsys):
     tasks = build / "SCRATCH-tasks.md"
     tasks.write_text("## 3. Mutation drives\n")
