@@ -34,4 +34,4 @@ lead transcripts show tools called by full path, quoted heredocs, and no
 retries caused by zsh word-splitting or substitution.
 
 ## Grading
-- 2026-10-02: held
+- 2026-10-02: missed — #511 lead: zsh word splitting hit three new forms ($G count, set -- $t, for over an unsplit variable) despite PR #77's full-path and quoted-heredoc rules; the skill pitfall still only covers R=...; $R.
