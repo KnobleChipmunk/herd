@@ -244,6 +244,15 @@ def test_plan_template_accounts_for_requirements_and_command_callers():
     assert "requirement table from `openspec/config.yaml`" in (SKILL_DIR / "SKILL.md").read_text()
 
 
+def test_the_plan_reviewer_requires_both_sides_of_every_planned_filter():
+    # Proposal plan-negative-boundary-missing (#40, #334): green mutations pinned
+    # only the order the author reversed; the skipped side of a filter went untested.
+    card = " ".join((SKILL_DIR / "cards/plan-reviewer.md").read_text().split())
+    assert "enumerate every validation and filtering condition in the planned code" in card
+    assert "an entry that passes the condition and an entry the condition skips or rejects" in card
+    assert "A condition with one side untested is REVISE." in card
+
+
 def test_the_plan_reviewer_checks_every_changed_citation_against_the_output_cap():
     # Proposal provenance-citation-cap-mismatch (#380-4): a capped metric cited
     # a tab cell that displayed 150%.

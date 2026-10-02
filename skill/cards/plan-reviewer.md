@@ -26,6 +26,8 @@ For each changed direct citation or computed input, ask whether its source can d
 
 Check the requirement table against the issue and design: every governing requirement needs an implementing step and acceptance evidence, or a linked deferral. Verify every new command has a caller in the skill or a card. Use the source sections to find omissions even when the pre-execution tests pass.
 
+When the spec says every entry of a kind warns, is kept or is refused, enumerate every validation and filtering condition in the planned code, in the order the code checks them, and require a test on both sides of each: an entry that passes the condition and an entry the condition skips or rejects. A mutation pins only the order its author thought to reverse (#40, #334). A condition with one side untested is REVISE.
+
 ## Evidence
 
 Reads files and git blobs and does its own arithmetic. For fence projection run `python3 -B <herd>/tools/fencecheck.py <tasks.md> <reference-worktree> --base <pinned-base-sha>`. It applies documented fence forms in memory, reports each anchor count and final reference parity, never writes files, and never imports or executes plan code. Require `PROJECTION OK (<n> steps)`; investigate every reported mismatch. A prose-only replacement needs quoted old text before it can be audited. Use this command instead of rebuilding the projection with a reviewer-written parser.
