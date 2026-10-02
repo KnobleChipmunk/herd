@@ -254,3 +254,81 @@ def test_plan_review_names_the_read_only_projection_command():
     assert "in memory" in card and "never writes files" in card
     assert "never imports or executes plan code" in card
     assert "projection command in `skill/cards/plan-reviewer.md`" in (root / "skill/SKILL.md").read_text()
+
+
+def _drifted(tmp_path):
+    """A folded reference that moved past two fences, and one it did not."""
+    steps = [dict(kind="new_file", path="t.py", new="def test_a():\n    assert f() == 1\n", why="test"),
+             dict(kind="replace", path="x.py", old="v = 1\n", new="v = 2\n", why="replace"),
+             dict(kind="replace", path="y.py", old="w = 1\n", new="w = 2\n", why="unchanged")]
+    (tmp_path / "t.py").write_text("def test_a():\n    assert f() == 3\n")
+    (tmp_path / "x.py").write_text("v = 2\nu = 4\n")
+    (tmp_path / "y.py").write_text("w = 2\n")
+    base = {"x.py": "v = 1\n", "y.py": "w = 1\n"}
+    return render(tests=steps[:1], impl=steps[1:]), base
+
+
+def test_rebase_report_names_each_stale_fence_with_its_diff(tmp_path):
+    tasks, base = _drifted(tmp_path)
+    report = fencecheck.rebase_report(tasks, base, tmp_path)
+    assert "## `t.py` (T1): first difference at line 2; +1 -1 lines" in report
+    assert "## `x.py` (I1): first difference at line 2; +1 -0 lines" in report
+    assert "-    assert f() == 1\n+    assert f() == 3\n" in report
+    assert "+u = 4\n" in report
+    assert "y.py" not in report
+
+
+def test_rebase_report_regenerates_a_whole_file_fence_only(tmp_path):
+    tasks, base = _drifted(tmp_path)
+    report = fencecheck.rebase_report(tasks, base, tmp_path)
+    t_section, x_section = report.split("## `x.py`")
+    assert "Regenerated T1 body:\n\n```python\ndef test_a():\n    assert f() == 3\n```\n" in t_section
+    assert "Regenerated" not in x_section
+
+
+def test_rebase_report_is_none_when_no_fence_is_stale(built):
+    assert fencecheck.rebase_report(render(), BASE, built) is None
+
+
+def test_rebase_cli_writes_the_report_and_still_fails(repo_with_worktree, capsys):
+    import subprocess
+
+    _, wt = repo_with_worktree
+    (wt / "x.py").write_text("old\n")
+    subprocess.run(["git", "add", "x.py"], cwd=wt, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base"], cwd=wt, check=True)
+    base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=wt, text=True).strip()
+    (wt / "x.py").write_text("folded\n")
+    tasks = wt / "tasks.md"
+    tasks.write_text(render(tests=[], impl=[dict(kind="replace", path="x.py", old="old\n", new="new\n", why="r")]))
+    out = wt / "REBASE-1.md"
+    assert fencecheck.main([str(tasks), str(wt), "--base", base, "--rebase", str(out)]) == 1
+    assert f"REBASE written to {out} (1 file)" in capsys.readouterr().out
+    assert "-new\n+folded\n" in out.read_text()
+    (wt / "x.py").write_text("new\n")
+    out.unlink()
+    assert fencecheck.main([str(tasks), str(wt), "--base", base, "--rebase", str(out)]) == 0
+    assert "REBASE: no stale fences" in capsys.readouterr().out
+    assert not out.exists()
+
+
+def test_rebase_needs_a_base(built, capsys):
+    tasks = built / "tasks.md"
+    tasks.write_text(render())
+    assert fencecheck.main([str(tasks), str(built), "--rebase", str(built / "R.md")]) == 2
+    assert "--rebase needs --base" in capsys.readouterr().out
+
+
+def test_the_fold_step_runs_the_rebase_report():
+    root = pathlib.Path(fencecheck.__file__).resolve().parent.parent
+    skill = (root / "skill/SKILL.md").read_text()
+    assert "--rebase REBASE-<id>-round-N.md" in skill
+
+
+def test_rebase_report_leaves_out_a_file_it_could_not_project(built):
+    """The prose-only I4 cannot be projected: its file stays base text, which
+    is not the fences' text, so a diff of it would be a false stale fence."""
+    (built / "src/whole.py").write_text("new body\nline 2\n")
+    report = fencecheck.rebase_report(render(), BASE, built)
+    assert "## `src/whole.py` (I3)" in report
+    assert "src/desc.py" not in report

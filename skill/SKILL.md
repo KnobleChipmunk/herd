@@ -684,8 +684,13 @@ the ruling to the next review without waiting for a fold, preserves the
 unchanged build-state evidence, and records the ruling in the handoff.
 For an accepted fence change, the lead marks `gates.py fold start --issue <id>`,
 folds the accepted fix into the reference,
-re-runs the affected tests and mutations, regenerates the fences, verifies
-byte parity. When the fold changes a test fence, the lead runs that test file against the pinned base in scratch
+re-runs the affected tests and mutations, and runs `python3 -B
+<herd>/tools/fencecheck.py <tasks.md> <reference> --base <pinned-base-sha>
+--rebase REBASE-<id>-round-N.md`: the report names every fence the fold
+made stale, with its diff and, for a whole-file fence, the regenerated
+body, so the fold reaches every fence it touched in the same round. It then
+regenerates the fences and verifies byte parity (the same command, now
+`PROJECTION OK` and no report). When the fold changes a test fence, the lead runs that test file against the pinned base in scratch
 and records its new RED tail and `gates.py match` line in section 0 before
 re-applying the implementation, so section 0 and the builder's carried RED
 never silently disagree. It then installs any regenerated test fences in the build worktree,
