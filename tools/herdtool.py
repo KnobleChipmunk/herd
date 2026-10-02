@@ -307,6 +307,9 @@ def render_steps(steps: list, start: int, prefix: str) -> str:
 def render_mutations(muts: list) -> str:
     out = []
     for name, rel, old, new, test in muts:
+        if not name.startswith("M"):
+            # parse_mutations (and so mutate.py) reads back only M-named drives.
+            raise ValueError(f"mutation name {name!r} must start with 'M'")
         lang = lang_of(rel)
         out.append(f"- [ ] **{name}** in `{rel}`: replace\n\n{fence(old, lang)}\nwith\n\n{fence(new, lang)}\n"
                    f"Killer: `{test}`\n\n")

@@ -245,3 +245,19 @@ def test_a_journal_naming_a_path_outside_the_tree_is_refused(build, tmp_path):
     assert outside.read_text() == "keep\n"
     assert not herdtool.inflight_path(build).exists()
     assert failures >= 1
+
+
+def test_render_mutations_refuses_a_name_the_parser_cannot_read_back():
+    # project-mera #502: "P1" rendered fine and parsed to zero mutations, so
+    # the builder's mutate.py found nothing to drive.
+    with pytest.raises(ValueError, match="must start with 'M'"):
+        herdtool.render_mutations([("P1 a drive", "src/a.py", "x\n", "y\n", "tests/t.py::k")])
+
+
+def test_every_rendered_mutation_parses_back():
+    muts = [("M1 one", "src/a.py", "x\n", "y\n", "tests/t.py::k"),
+            ("M2 two", "src/b.py", "p\n", "q\n", "tests/t.py::j")]
+
+    parsed = herdtool.parse_mutations(herdtool.render_mutations(muts))
+
+    assert [m["name"] for m in parsed] == ["M1 one", "M2 two"]
