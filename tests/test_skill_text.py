@@ -116,3 +116,11 @@ def test_a_fold_returns_to_review_with_its_outcome_checklist():
         assert row in rereview
     assert "follows every branch of the helper" in rereview
     assert "bounded to the encoding actually observed" in rereview
+
+
+def test_the_baseline_suite_runs_in_its_own_clean_worktree():
+    # Proposal baseline-suite-contaminated-by-edits (#459-4, #334): a baseline
+    # run in the pre-execution tree read mid-build edits and was discarded.
+    gates = paragraph(SKILL.read_text(), "- **Measure every gate before writing its expectation")
+    assert "in its own clean worktree cut from the base commit (`base-<id>`)" in gates
+    assert "never in the pre-execution tree or any worktree you will edit" in gates
