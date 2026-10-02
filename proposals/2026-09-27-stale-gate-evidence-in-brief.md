@@ -39,3 +39,4 @@ dispatch.
 ## Grading
 - 2026-09-29: missed — #333 plan reviewer: the round-2 dispatch reused the original brief, which still said SMALL gets one round and described the old apply-count fixture; the reviewer had to reconcile the superseded instructions against the current authorization
 - 2026-09-30: held
+- 2026-10-02: held

@@ -30,3 +30,6 @@ generated; no separate skill paragraph is needed.
 No `count-gate-verified-by-eyes` events in the next run's friction lines;
 the handoff's pytest count gates carry `gates.py match` MATCH lines, and a
 count mismatch is caught by a tool line before the reviewer reads the file.
+
+## Grading
+- 2026-10-02: held

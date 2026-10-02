@@ -31,3 +31,4 @@ is frozen rather than in a review round.
 ## Grading
 - 2026-09-29: held
 - 2026-09-30: held
+- 2026-10-02: held

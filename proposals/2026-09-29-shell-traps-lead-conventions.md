@@ -32,3 +32,6 @@ Add to the skill's Pitfalls/lead conventions:
 No `shell-traps-lead-conventions` events in the next run's friction lines;
 lead transcripts show tools called by full path, quoted heredocs, and no
 retries caused by zsh word-splitting or substitution.
+
+## Grading
+- 2026-10-02: held

@@ -1,6 +1,6 @@
 # manual-reference-mutation-recovery
 
-Status: accepted
+Status: applied https://github.com/KnobleChipmunk/herd/pull/83 2026-09-30
 
 ## Class
 
@@ -26,3 +26,6 @@ check is mechanical.
 No manual-reference-mutation-recovery events in the next run: the builder's
 retro names `apply-steps.py` as the applier used, and no SCRATCH-apply*.py
 file appears in the run's worktrees.
+
+## Grading
+- 2026-10-02: held

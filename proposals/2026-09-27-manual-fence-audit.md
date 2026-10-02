@@ -35,3 +35,4 @@ newline-form mismatches no longer read as false zero-match defects.
 ## Grading
 - 2026-09-29: held
 - 2026-09-30: missed — #482 filed two manual-fence-audit events: codex_build hand-parsed tasks.md fences and made two real errors (insert-vs-replace cue, section 2a's code fences attached to I20), and the plan reviewer hand-wrote read-only checks for all 28 original anchors, insertion boundaries, and mutation anchors because fencecheck.py reports projected, not original-base, counts.
+- 2026-10-02: held

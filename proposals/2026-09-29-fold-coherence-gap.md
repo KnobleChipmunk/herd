@@ -1,6 +1,6 @@
 # Proposal: fold declares done without checking implementation constraints
 
-Status: accepted
+Status: applied https://github.com/KnobleChipmunk/herd/pull/85 2026-09-30
 
 ## Class
 
@@ -32,3 +32,6 @@ expanding the change into defensive parser work.
 No `fold-coherence-gap` events in the next run's friction lines; each fold
 disposition in the round file carries the four-row outcome checklist, and
 helper-function claims in the spec name the branch they hold on.
+
+## Grading
+- 2026-10-02: held

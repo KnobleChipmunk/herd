@@ -1,6 +1,6 @@
 # provenance-citation-cap-mismatch
 
-Status: accepted
+Status: applied https://github.com/KnobleChipmunk/herd/pull/86 2026-09-30
 
 ## Class
 
@@ -28,3 +28,6 @@ The next run's plan-review file cites at least one negative-boundary probe
 for every changed citation, and the build's round-1 findings contain no
 fence-owned cap/window contradictions (no fence-owned findings routed to a
 lead ruling in the build).
+
+## Grading
+- 2026-10-02: held
