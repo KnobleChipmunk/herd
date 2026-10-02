@@ -1,6 +1,6 @@
 # Proposal: byte-exact gate rejects case-variant defect fix until fences are folded
 
-Status: open
+Status: accepted
 
 ## Class
 
