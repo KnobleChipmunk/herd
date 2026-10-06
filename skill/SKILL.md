@@ -1,6 +1,6 @@
 ---
 name: herd
-description: Run the Herdr three-agent build loop — the lead (this session) orchestrates, pre-executes, and writes the openspec change, a local builder model (via the Codex CLI) builds it in a worktree, a Codex build reviewer reviews round-robin until clean, and the lead runs the `reviewer` skill (audience: ai) as the final pass, then collects a skill retrospective from every agent. Use when the user says "/herd", "herd #N", "run the herd on <issue|goal>", or asks to build an issue with the local builder via Herdr. Requires HERDR_ENV=1. Subagents are replaced by a pane below this one — Codex for plan review, claude for every other role. Models per role are in the Roster table.
+description: 'Run the Herdr three-agent build loop — the lead (this session) orchestrates, pre-executes, and writes the openspec change, a local builder model (via the Codex CLI) builds it in a worktree, a Codex build reviewer reviews round-robin until clean, and the lead runs the `reviewer` skill (audience: ai) as the final pass, then collects a skill retrospective from every agent. Use when the user says "/herd", "herd #N", "run the herd on <issue|goal>", or asks to build an issue with the local builder via Herdr. Requires HERDR_ENV=1. Subagents are replaced by a pane below this one — Codex for plan review, claude for every other role. Models per role are in the Roster table.'
 ---
 
 # Herd — the lead orchestrates, a local model builds in Codex, Codex reviews
