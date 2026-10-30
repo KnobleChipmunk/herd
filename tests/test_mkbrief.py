@@ -480,3 +480,25 @@ def test_main_takes_the_cache_directory(repo_with_worktree, tmp_path, monkeypatc
     allowed.write_text("  - src/x.py\n")
     mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(allowed), "--cache-dir", "/work/c"])
     assert "RUFF_CACHE_DIR=/work/c/ruff" in (wt / "BUILD-BRIEFING-42.md").read_text()
+
+
+def test_the_handoff_is_written_before_review_round_1(repo_with_worktree):
+    # Path A #117: round 1's only finding was a missing handoff, which cost one of the two rounds.
+    _, _, briefing, _ = brief(repo_with_worktree)
+    coordination = briefing[briefing.index("## Coordination"):]
+    assert coordination.index("write `HANDOFF-42.md`") < coordination.index("CODEX-PROMPT-42-round-N.md")
+    assert "a missing handoff is a round-1 finding" in coordination
+
+
+def test_red_and_green_output_is_saved_to_files(repo_with_worktree):
+    # Path A #117: gates.py match needs a file and the handoff needs the tails.
+    _, _, briefing, _ = brief(repo_with_worktree)
+    assert "> SCRATCH-red.txt 2>&1" in briefing and "> SCRATCH-green.txt 2>&1" in briefing
+
+
+def test_the_handoff_lists_untracked_files_beside_the_stat(repo_with_worktree):
+    # Path A #117: the stat showed 36 files, the allowed list 38; new files are untracked.
+    _, _, briefing, _ = brief(repo_with_worktree)
+    handoff = briefing[briefing.index("## Handoff"):]
+    item = handoff[handoff.index("\n5. "):handoff.index("\n6. ")]
+    assert "`git diff --stat` and `git status --short`" in item

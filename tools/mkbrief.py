@@ -172,7 +172,9 @@ byte for byte.
 ## Rules
 
 - Tests first. Do section 1, run the touched tests, SEE THEM FAIL (RED), and
-  save the tail. Only then do section 2 and reach GREEN.
+  save the output to a file (`<command> > SCRATCH-red.txt 2>&1`). Only then do
+  section 2 and reach GREEN, saved the same way (`> SCRATCH-green.txt 2>&1`):
+  `gates.py match` reads these files and the handoff quotes their tails.
 - Anchors are quoted text. If an anchor does not match exactly once, STOP and
   send BLOCKED — do not guess.
 {steps_rule}- Never loosen, delete, or skip an assertion to make a test pass.
@@ -195,13 +197,16 @@ byte for byte.
    lines; every grep gate's output; the fence check's output —
    `{herd_python} {FENCECHECK} openspec/changes/{change}/tasks.md .` must print
    `FENCES OK (<n> steps)`; any other line is a deviation to fix before review.
-5. `git diff --stat`.
+5. `git diff --stat` and `git status --short` (the stat leaves out untracked new files).
 6. Sibling sweep result, if tasks.md asks for one.
 7. Mutation log: name, KILLED/SURVIVED, the observed FAILED line.
 8. Every assertion in this handoff NOT backed by a tool result you ran.
 9. Round log: one line per review round (findings, what you changed).
 
 ## Coordination (run these literally, from the worktree root)
+
+Before round 1, write `HANDOFF-{id}.md` (above): the reviewer reads it first, and
+a missing handoff is a round-1 finding.
 
 Review round N (N = 1, 2): make the per-round prompt, then send it.
 
