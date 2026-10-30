@@ -120,7 +120,8 @@ def test_main_scratch_accepts_current_directory_and_preserves_source(build, monk
     assert mutate.main([str(tasks), tree, "--only", "M1", "--scratch"]) == 0
 
     lines = capsys.readouterr().out.splitlines()
-    assert len(lines) == 1 and lines[0].startswith("M1 KILLED")
+    assert len(lines) == 2 and lines[0].startswith("M1 KILLED")
+    assert lines[1] == "M1: 1 KILLED, 0 SURVIVED, 0 other"
     assert calc.read_bytes() == before
     assert calc.stat().st_mtime_ns == stamp
     assert git("status", "--porcelain", cwd=build) == status
@@ -275,3 +276,12 @@ def test_every_rendered_mutation_parses_back():
     parsed = herdtool.parse_mutations(herdtool.render_mutations(muts))
 
     assert [m["name"] for m in parsed] == ["M1 one", "M2 two"]
+
+
+def test_main_ends_with_one_count_line_per_verdict(build, capsys):
+    # Path A #117: ten KILLED lines and no total left the handoff count to the eye.
+    tasks = build / "tasks.md"
+    tasks.write_text(render_tasks(MUTATIONS + [("M4", "src/calc.py", "absent", "x", "tests/test_calc.py")]))
+    mutate.main([str(tasks), str(build)])
+    last = capsys.readouterr().out.strip().splitlines()[-1]
+    assert last == "M1..M4: 1 KILLED, 2 SURVIVED, 1 other"

@@ -72,6 +72,20 @@ def drive(tasks_text: str, w: pathlib.Path, only: set[str] | None = None,
         return run_mutations(copy, [resolve(copy, m) for m in muts], py)
 
 
+def tally(lines: list[str], names: list[str]) -> str:
+    """One closing count line, so a handoff never counts KILLED lines by eye.
+    Every drive that is neither KILLED nor SURVIVED (VOID, NOT RUN) is other."""
+    verdicts = {}
+    for ln in lines:
+        name = next((n for n in names if ln.startswith(n + " ")), None)
+        if name is not None:
+            verdicts[name] = ln[len(name) + 1:].split(" ", 1)[0]
+    killed = sum(v == "KILLED" for v in verdicts.values())
+    survived = sum(v == "SURVIVED" for v in verdicts.values())
+    span = names[0] if len(names) == 1 else f"{names[0]}..{names[-1]}"
+    return f"{span}: {killed} KILLED, {survived} SURVIVED, {len(names) - killed - survived} other"
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("tasks")
@@ -96,6 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     lines, failures = drive(text, pathlib.Path(a.worktree), only=only, scratch=a.scratch)
     for ln in lines:
         print(ln)
+    print(tally(lines, [m["name"] for m in parse_mutations(text) if not only or m["name"] in only]))
     return 1 if failures else 0
 
 
