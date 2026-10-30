@@ -1,3 +1,5 @@
+import pathlib
+import re
 import sys
 
 import pytest
@@ -383,7 +385,8 @@ def test_briefing_and_prompt_keep_linter_caches_out_of_the_worktree(repo_with_wo
     # Proposal readonly-worktree-cache-dir: the build worktree rejects cache
     # writes, so every generated ruff and mypy command carries its cache dir.
     _, _, briefing, prompt = brief(repo_with_worktree)
-    env = "RUFF_CACHE_DIR=/tmp/herd-42-ruff MYPY_CACHE_DIR=/tmp/herd-42-mypy"
+    cache = pathlib.Path.home() / "Documents" / "claude" / "tmp" / "herd" / "42"
+    env = f"RUFF_CACHE_DIR={cache}/ruff MYPY_CACHE_DIR={cache}/mypy"
     assert f"`{env} ruff check <paths>`" in briefing
     assert f"`{env} PYTHONPATH=src /py/bin/python -m mypy`" in briefing
     assert f"each ruff and mypy command prefixed `{env}`" in prompt
@@ -502,3 +505,10 @@ def test_the_handoff_lists_untracked_files_beside_the_stat(repo_with_worktree):
     handoff = briefing[briefing.index("## Handoff"):]
     item = handoff[handoff.index("\n5. "):handoff.index("\n6. ")]
     assert "`git diff --stat` and `git status --short`" in item
+
+
+def test_the_default_cache_directory_is_durable_scratch_never_tmp(repo_with_worktree):
+    # Operator rule: nothing that must outlive one command goes in /tmp.
+    _, _, briefing, prompt = brief(repo_with_worktree)
+    root_tmp = re.compile(r"(?<![\w.~-])/tmp\b")
+    assert not root_tmp.search(briefing) and not root_tmp.search(prompt)

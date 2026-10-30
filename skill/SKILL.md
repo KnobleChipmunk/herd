@@ -465,8 +465,9 @@ structure only (#40).
   <change-name> <allowed-files-file> --lead-pane <live-pane-id> --builder <pane name>
   --herd-python <herd venv python> [--cache-dir <writable dir>]`, then prompts
   the builder. Every herd tool command in the briefing runs under
-  `--herd-python`, never a bare `python3` a pane's hook blocks; pass
-  `--cache-dir` when the panes' sandbox cannot write `/tmp`. A `codex*` builder gets the sandbox escalation list. Put every measured gate, including the full-suite count,
+  `--herd-python`, never a bare `python3` a pane's hook blocks. Linter
+  caches default to `~/Documents/claude/tmp/herd/<id>`, never `/tmp`; pass
+  `--cache-dir` for another writable directory. A `codex*` builder gets the sandbox escalation list. Put every measured gate, including the full-suite count,
   mutation names and fence step count, in tasks.md's single `## 0. Gates`
   section. The generator copies that section; it takes no separate gate file.
   After any spec amendment, regenerate the briefing from tasks.md before

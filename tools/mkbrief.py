@@ -9,8 +9,8 @@ reviewer defaults to the roster's build reviewer, codex_review, and the builder
 to its builder, codex_build (pass --builder pi_build for the pi fallback).
 Every herd tool command runs under --herd-python, default the interpreter
 running this script, never a bare `python3` a pane's hook may block. Linter
-caches go under --cache-dir, default /tmp/herd-<id>; pass a writable
-directory when the panes' sandbox refuses /tmp.
+caches go under --cache-dir, default ~/Documents/claude/tmp/herd/<id>
+(durable scratch; nothing a run reads later goes in a temp directory).
 """
 from __future__ import annotations
 
@@ -102,9 +102,8 @@ def cache_env(id: str, cache_dir: str | None = None) -> str:
     """The cache locations for one build's ruff and mypy: the build worktree
     rejects cache writes, so every generated command carries them (proposal
     readonly-worktree-cache-dir)."""
-    if cache_dir:
-        return f"RUFF_CACHE_DIR={cache_dir}/ruff MYPY_CACHE_DIR={cache_dir}/mypy"
-    return f"RUFF_CACHE_DIR=/tmp/herd-{id}-ruff MYPY_CACHE_DIR=/tmp/herd-{id}-mypy"
+    cache = cache_dir or str(pathlib.Path.home() / "Documents" / "claude" / "tmp" / "herd" / id)
+    return f"RUFF_CACHE_DIR={cache}/ruff MYPY_CACHE_DIR={cache}/mypy"
 
 
 def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str,
