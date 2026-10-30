@@ -7,7 +7,9 @@ The `/herd` skill and the toolkit it runs on.
 - `tools/` holds the helpers the lead and agents call during a run:
   - `herdtool.py` applies a plan module to a worktree, drives its mutations,
     checks fence parity and renders `tasks.md`.
-  - `mkbrief.py` writes the builder briefing and the reviewer prompt.
+  - `mkbrief.py` writes the builder briefing and the reviewer prompt. Herd
+    tool commands in them run under `--herd-python` (default: the
+    interpreter running it), linter caches go under `--cache-dir`.
   - `fencecheck.py <tasks.md> <worktree>` checks a build against the
     byte-exact fences in its `tasks.md` and prints one line per deviation
     (step, file, why). It needs only `tasks.md`, so the builder runs it
@@ -21,7 +23,9 @@ The `/herd` skill and the toolkit it runs on.
   - `mutate.py <tasks.md> <worktree> [--only M1,M2] [--scratch]` drives the
     mutations in `tasks.md`: KILLED with the failing test, SURVIVED, VOID
     when an anchor is not unique, TREE CHANGED when a drive left the tree
-    different. `--scratch` drives a copy, for reviewers.
+    different. `--scratch` drives a copy, for reviewers. The output ends
+    with one count line. A repo adds the variables its tests need at
+    collection to the drives' pinned environment in `.herd-mutate-env`.
   - `runlog.py add <kind> …` appends one checkpoint to the run log in the
     repo's git directory; `status`, `created` and `friction` read the latest
     run back (progress per issue and what is still open, what the run
