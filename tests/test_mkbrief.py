@@ -4,6 +4,7 @@ import pytest
 
 import mkbrief
 
+HERD_PY = "/herd/.venv/bin/python"
 MEASURED = "- Full suite at the base → `510 passed` (measured, 290 s).\n"
 
 
@@ -20,7 +21,7 @@ def brief(repo_with_worktree, **overrides):
         write_tasks(wt)
     args = dict(id="42", worktree=wt, branch="fix/42-x", base="main", change="fix-x",
                 allowed="  - src/x.py", python="/py/bin/python",
-                lead_pane="w9:p9Z", reviewer="codex_review", has_xdist=False)
+                lead_pane="w9:p9Z", reviewer="codex_review", has_xdist=False, herd_python=HERD_PY)
     args.update(overrides)
     return main, wt, mkbrief.build_briefing(**args), mkbrief.build_reviewer_prompt(**args)
 
@@ -51,14 +52,14 @@ def test_briefing_and_prompt_use_the_given_python(repo_with_worktree):
 
 def test_reviewer_prompt_runs_the_fence_checker_instead_of_reading_fences_by_eye(repo_with_worktree):
     _, wt, _, prompt = brief(repo_with_worktree)
-    cmd = f"python3 {mkbrief.FENCECHECK} {wt}/openspec/changes/fix-x/tasks.md {wt}"
+    cmd = f"{HERD_PY} {mkbrief.FENCECHECK} {wt}/openspec/changes/fix-x/tasks.md {wt}"
     assert cmd in prompt
     assert mkbrief.FENCECHECK.name == "fencecheck.py" and mkbrief.FENCECHECK.is_absolute()
 
 
 def test_briefing_has_the_builder_run_the_fence_checker_into_the_handoff(repo_with_worktree):
     _, wt, briefing, _ = brief(repo_with_worktree)
-    assert f"python3 {mkbrief.FENCECHECK} openspec/changes/fix-x/tasks.md ." in briefing
+    assert f"{HERD_PY} {mkbrief.FENCECHECK} openspec/changes/fix-x/tasks.md ." in briefing
     assert "`FENCES OK (<n> steps)`" in briefing
 
 
@@ -122,13 +123,13 @@ def test_a_base_that_is_not_a_git_ref_is_an_error(repo_with_worktree):
 
 def test_reviewer_prompt_lists_changes_with_the_manifest_against_the_allowed_file(repo_with_worktree):
     main, wt, _, prompt = brief(repo_with_worktree)
-    assert f"python3 {mkbrief.GATES} manifest {wt} {head_sha(main)} --allowed {wt}/ALLOWED-42.txt" in prompt
+    assert f"{HERD_PY} {mkbrief.GATES} manifest {wt} {head_sha(main)} --allowed {wt}/ALLOWED-42.txt" in prompt
     assert "OUTSIDE ALLOWED" in prompt
 
 
 def test_briefing_gates_are_matched_by_counts_with_the_gate_tool(repo_with_worktree):
     _, _, briefing, _ = brief(repo_with_worktree)
-    assert f'python3 {mkbrief.GATES} match "<expected line>" <output file>' in briefing
+    assert f'{HERD_PY} {mkbrief.GATES} match "<expected line>" <output file>' in briefing
     assert "literal last lines" not in briefing
 
 
@@ -150,19 +151,19 @@ def test_main_writes_the_allowed_file_with_the_spec_directory(repo_with_worktree
 
 def test_briefing_has_the_builder_drive_mutations_with_the_runner(repo_with_worktree):
     _, _, briefing, _ = brief(repo_with_worktree)
-    assert f"python3 {mkbrief.MUTATE} openspec/changes/fix-x/tasks.md ." in briefing
+    assert f"{HERD_PY} {mkbrief.MUTATE} openspec/changes/fix-x/tasks.md ." in briefing
 
 
 def test_reviewer_prompt_re_drives_two_mutations_on_a_scratch_copy(repo_with_worktree):
     _, wt, _, prompt = brief(repo_with_worktree)
-    assert f"python3 {mkbrief.MUTATE} {wt}/openspec/changes/fix-x/tasks.md {wt} --scratch --only " in prompt
+    assert f"{HERD_PY} {mkbrief.MUTATE} {wt}/openspec/changes/fix-x/tasks.md {wt} --scratch --only " in prompt
 
 
 def test_builder_and_reviewer_log_friction_to_the_run_log_under_their_own_names(repo_with_worktree):
     _, wt, briefing, prompt = brief(repo_with_worktree, reviewer="codex_review", builder="pi_build")
-    assert (f'python3 {mkbrief.RUNLOG} add friction --repo {wt} --issue 42 --agent pi_build --text "<what cost you'
+    assert (f'{HERD_PY} {mkbrief.RUNLOG} add friction --repo {wt} --issue 42 --agent pi_build --text "<what cost you'
             in briefing)
-    assert (f'python3 {mkbrief.RUNLOG} add friction --repo {wt} --issue 42 --agent codex_review --text "<what cost'
+    assert (f'{HERD_PY} {mkbrief.RUNLOG} add friction --repo {wt} --issue 42 --agent codex_review --text "<what cost'
             in prompt)
 
 
@@ -318,7 +319,7 @@ def test_handoff_carries_a_match_line_for_every_pytest_count_gate(repo_with_work
     _, _, briefing, _ = brief(repo_with_worktree)
     handoff = briefing[briefing.index("## Handoff"):]
     item = handoff[handoff.index("\n4. "):handoff.index("\n5. ")]
-    assert f"python3 {mkbrief.GATES} match" in item
+    assert f"{HERD_PY} {mkbrief.GATES} match" in item
     assert "every pytest count gate" in item and "MATCH line" in item
 
 
@@ -393,8 +394,8 @@ def test_the_builder_applies_steps_with_the_shared_applier(repo_with_worktree):
     _, wt, _, _ = brief(repo_with_worktree)
     (wt / "STEPS-42.json").write_text("[]\n")
     _, _, briefing, _ = brief(repo_with_worktree)
-    assert f"`python3 {mkbrief.APPLY_STEPS} STEPS-42.json . T`" in briefing
-    assert f"`python3 {mkbrief.APPLY_STEPS} STEPS-42.json . --path <file>`" in briefing
+    assert f"`{HERD_PY} {mkbrief.APPLY_STEPS} STEPS-42.json . T`" in briefing
+    assert f"`{HERD_PY} {mkbrief.APPLY_STEPS} STEPS-42.json . --path <file>`" in briefing
     assert "Do not write your own applier" in briefing
 
 
@@ -426,3 +427,56 @@ def test_the_codex_builder_runs_the_state_writing_gates_outside_the_sandbox():
         "  - Every `gates.py suite-ok` and `gates.py fold` call: OUTSIDE the sandbox; "
         "it writes the shared herd state under the repo's git directory.\n"
     ) in mkbrief.CODEX_BUILDER_SANDBOX
+
+
+def test_no_generated_command_runs_a_bare_python3(repo_with_worktree):
+    # Path A #113: a Claude pane's venv hook blocks bare `python3`, and the lead
+    # patched every herd tool command by hand in two briefings.
+    _, wt, _, _ = brief(repo_with_worktree)
+    (wt / "STEPS-42.json").write_text("[]\n")
+    _, _, briefing, prompt = brief(repo_with_worktree)
+    assert "python3" not in briefing and "python3" not in prompt
+    assert f"{HERD_PY} {mkbrief.DISPATCH} codex_review --file" in briefing
+
+
+def test_main_runs_herd_tools_with_the_given_interpreter(repo_with_worktree, tmp_path, monkeypatch):
+    _, wt = repo_with_worktree
+    monkeypatch.setenv("HERDR_PANE_ID", "w5:p5A")
+    monkeypatch.setenv("HERD_PYTHON", sys.executable)
+    write_tasks(wt)
+    allowed = tmp_path / "allowed.txt"
+    allowed.write_text("  - src/x.py\n")
+    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(allowed), "--herd-python", "/opt/herd/py"])
+    assert f"/opt/herd/py {mkbrief.GATES} match" in (wt / "BUILD-BRIEFING-42.md").read_text()
+    assert f"/opt/herd/py {mkbrief.FENCECHECK}" in (wt / "CODEX-PROMPT-42.md").read_text()
+
+
+def test_main_defaults_herd_tools_to_the_interpreter_running_it(repo_with_worktree, tmp_path, monkeypatch):
+    _, wt = repo_with_worktree
+    monkeypatch.setenv("HERDR_PANE_ID", "w5:p5A")
+    monkeypatch.setenv("HERD_PYTHON", sys.executable)
+    write_tasks(wt)
+    allowed = tmp_path / "allowed.txt"
+    allowed.write_text("  - src/x.py\n")
+    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(allowed)])
+    assert f"{sys.executable} {mkbrief.GATES} match" in (wt / "BUILD-BRIEFING-42.md").read_text()
+
+
+def test_linter_caches_go_under_the_given_cache_directory(repo_with_worktree):
+    # Path A #113: the Claude sandbox cannot write /tmp, so the lead names a writable directory.
+    _, _, briefing, prompt = brief(repo_with_worktree, cache_dir="/work/cache/113")
+    env = "RUFF_CACHE_DIR=/work/cache/113/ruff MYPY_CACHE_DIR=/work/cache/113/mypy"
+    assert f"`{env} ruff check <paths>`" in briefing
+    assert f"each ruff and mypy command prefixed `{env}`" in prompt
+    assert "/tmp" not in briefing and "/tmp" not in prompt
+
+
+def test_main_takes_the_cache_directory(repo_with_worktree, tmp_path, monkeypatch):
+    _, wt = repo_with_worktree
+    monkeypatch.setenv("HERDR_PANE_ID", "w5:p5A")
+    monkeypatch.setenv("HERD_PYTHON", sys.executable)
+    write_tasks(wt)
+    allowed = tmp_path / "allowed.txt"
+    allowed.write_text("  - src/x.py\n")
+    mkbrief.main(["42", str(wt), "fix/42-x", "main", "fix-x", str(allowed), "--cache-dir", "/work/c"])
+    assert "RUFF_CACHE_DIR=/work/c/ruff" in (wt / "BUILD-BRIEFING-42.md").read_text()
