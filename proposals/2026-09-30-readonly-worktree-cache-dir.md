@@ -32,3 +32,7 @@ first-attempt ruff and mypy runs succeed in every pane.
 
 ## Grading
 2026-10-02: missed — #502p0 codex_review friction: read-only sandbox cache failures cost ~2 min (first-attempt cache writes failed again).
+
+## Note (2026-10-30)
+
+The cache locations no longer default to `/tmp`: `mkbrief.py --cache-dir` defaults to `~/Documents/claude/tmp/herd/<id>` (operator rule: nothing that must outlive one command goes in `/tmp`), on `chore/path-a-retros-fold`.

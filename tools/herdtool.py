@@ -14,6 +14,8 @@ usage: herdtool.py <plan.py> apply-tests|apply-impl|mutate|render|check-applied 
        herdtool.py <plan.py> emit-steps <out.json>   (the builder's STEPS-<id>.json)
 
 The interpreter is $HERD_PYTHON, else the main checkout's .venv, else this one.
+The drives run in a pinned environment; a repo adds the variables its tests
+need at collection in .herd-mutate-env (see declared_env).
 """
 from __future__ import annotations
 
@@ -46,15 +48,43 @@ def find_python(w: pathlib.Path) -> str:
     return str(venv_py) if venv_py.exists() else sys.executable
 
 
-def mutate_env() -> dict[str, str]:
+MUTATE_ENV_FILE = ".herd-mutate-env"
+
+
+def declared_env(w: pathlib.Path) -> dict[str, str]:
+    """The extra variables a repo declares for its drives in MUTATE_ENV_FILE:
+    one per line, `NAME` to pass the caller's value through, `NAME=value` to
+    set one; `#` lines are comments. A declared name the caller lacks would
+    read NOT RUN for every drive, so it stops the drive instead."""
+    path = w / MUTATE_ENV_FILE
+    if not path.exists():
+        return {}
+    env = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        name, eq, value = line.partition("=")
+        if eq:
+            env[name.strip()] = value.strip()
+        elif name in os.environ:
+            env[name] = os.environ[name]
+        else:
+            raise SystemExit(f"{path}: {name} is declared for the drives but not set in this environment")
+    return env
+
+
+def mutate_env(w: pathlib.Path | None = None) -> dict[str, str]:
     """A pinned environment for the drives, plus node's directory: page tests
-    run under node and skip without it, and a skipped killer proves nothing."""
+    run under node and skip without it, and a skipped killer proves nothing.
+    The repo at `w` can add variables it needs at collection (declared_env)."""
     path = ["/usr/bin", "/bin"]
     node = shutil.which("node")
     if node and str(pathlib.Path(node).parent) not in path:
         path.append(str(pathlib.Path(node).parent))
-    return {"PYTHONPATH": "src", "PATH": ":".join(path), "PYTHONDONTWRITEBYTECODE": "1",
-            "HOME": str(pathlib.Path.home())}
+    env = {"PYTHONPATH": "src", "PATH": ":".join(path), "PYTHONDONTWRITEBYTECODE": "1",
+           "HOME": str(pathlib.Path.home())}
+    return {**env, **declared_env(w)} if w is not None else env
 
 
 def base_text(ref: str, base: str, rel: str) -> str:
@@ -209,6 +239,7 @@ def run_mutations(w: pathlib.Path, muts: list, py: str) -> tuple[list[str], int]
     if restored:
         lines.append(restored)
         failures += restored.startswith("REFUSED")
+    env = mutate_env(w)
     before = porcelain(w)
     before_content = content_hashes(w)
     for name, rel, old, new, test in muts:
@@ -225,7 +256,7 @@ def run_mutations(w: pathlib.Path, muts: list, py: str) -> tuple[list[str], int]
                 shutil.rmtree(pc, ignore_errors=True)
             r = subprocess.run(
                 [py, "-B", "-m", "pytest", *test.split(), "-q", "--no-header", "-p", "no:cacheprovider", "-x"],
-                cwd=w, capture_output=True, text=True, env=mutate_env(),
+                cwd=w, capture_output=True, text=True, env=env,
             )
         finally:
             path.write_text(orig, encoding="utf-8")
@@ -263,8 +294,11 @@ def forms(rendered: str) -> list[str]:
     return [rendered] if stripped.endswith("\n") else [rendered, stripped]
 
 
+LANGS = {".py": "python", ".html": "html", ".json": "json", ".md": "markdown", ".yaml": "yaml", ".yml": "yaml"}
+
+
 def lang_of(path: str) -> str:
-    return "html" if path.endswith(".html") else "python"
+    return LANGS.get(pathlib.PurePath(path).suffix, "text")
 
 
 def fence(text: str, lang: str = "python") -> str:

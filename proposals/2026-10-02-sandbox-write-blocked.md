@@ -20,3 +20,7 @@ This is a tool change in `tools/mkbrief.py`, not a skill paragraph: the `readonl
 ## Prediction
 
 No `sandbox-write-blocked` events in the next run's friction lines: first-attempt gate commands succeed in every sandboxed pane without the agent discovering a blocked write path.
+
+## Note (2026-10-30)
+
+The cache locations no longer default to `/tmp`: `mkbrief.py --cache-dir` defaults to `~/Documents/claude/tmp/herd/<id>` (operator rule: nothing that must outlive one command goes in `/tmp`), on `chore/path-a-retros-fold`.

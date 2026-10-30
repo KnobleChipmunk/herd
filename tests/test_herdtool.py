@@ -179,3 +179,45 @@ def test_render_refuses_a_tasks_md_whose_steps_read_back_differently(tmp_path, m
     assert str(exc.value) == (
         "render: the rendered tasks.md reads back with steps ['T1'], the plan has ['T1', 'I1', 'I2', 'I3']"
     )
+
+
+def test_mutate_env_passes_through_the_names_a_repo_declares(monkeypatch, tmp_path):
+    # Path A #113: test collection needs AWS_DEFAULT_REGION, and a drive in the
+    # pinned environment read NOT RUN for every mutation.
+    (tmp_path / herdtool.MUTATE_ENV_FILE).write_text("# needed at collection\nAWS_DEFAULT_REGION\n\n")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-2")
+    assert herdtool.mutate_env(tmp_path)["AWS_DEFAULT_REGION"] == "us-east-2"
+
+
+def test_mutate_env_sets_a_declared_name_value_pair(monkeypatch, tmp_path):
+    (tmp_path / herdtool.MUTATE_ENV_FILE).write_text("AWS_EC2_METADATA_DISABLED=true\n")
+    monkeypatch.delenv("AWS_EC2_METADATA_DISABLED", raising=False)
+    assert herdtool.mutate_env(tmp_path)["AWS_EC2_METADATA_DISABLED"] == "true"
+
+
+def test_mutate_env_refuses_a_declared_name_the_environment_lacks(monkeypatch, tmp_path):
+    (tmp_path / herdtool.MUTATE_ENV_FILE).write_text("AWS_DEFAULT_REGION\n")
+    monkeypatch.delenv("AWS_DEFAULT_REGION", raising=False)
+    with pytest.raises(SystemExit, match="AWS_DEFAULT_REGION"):
+        herdtool.mutate_env(tmp_path)
+
+
+def test_mutate_env_without_a_declaration_is_the_pinned_set(monkeypatch, tmp_path):
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-2")
+    assert "AWS_DEFAULT_REGION" not in herdtool.mutate_env(tmp_path)
+
+
+@pytest.mark.parametrize("path, lang", [
+    ("src/a.py", "python"), ("page.html", "html"), ("tests/fixtures/x.json", "json"),
+    ("docs/notes.md", "markdown"), ("config.yaml", "yaml"), ("config.yml", "yaml"), ("run.sh", "text"),
+])
+def test_lang_of_labels_each_fence_by_its_file_type(path, lang):
+    # Path A #113: a JSON fixture rendered in a python fence, and the plan reviewer flagged it.
+    assert herdtool.lang_of(path) == lang
+
+
+def test_a_json_step_renders_a_json_fence_that_still_reads_back():
+    steps = [{"kind": "new_file", "path": "tests/fixtures/x.json", "new": '{"a": 1}\n', "why": "fixture"}]
+    text = herdtool.render_steps(steps, 1, "T")
+    assert '```json\n{"a": 1}\n```\n' in text
+    assert herdtool.parse_tasks(text)[0]["new"] == '{"a": 1}\n'

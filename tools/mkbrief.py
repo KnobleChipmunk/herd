@@ -2,10 +2,15 @@
 
 usage: mkbrief.py <id> <worktree> <branch> <base-desc> <change-name> <allowed-files-file>
                   [--lead-pane <pane>] [--reviewer <agent name>] [--builder <agent name>]
+                  [--herd-python <interpreter>] [--cache-dir <dir>]
 
 The lead pane defaults to $HERDR_PANE_ID (run this from the lead's pane); the
 reviewer defaults to the roster's build reviewer, codex_review, and the builder
 to its builder, codex_build (pass --builder pi_build for the pi fallback).
+Every herd tool command runs under --herd-python, default the interpreter
+running this script, never a bare `python3` a pane's hook may block. Linter
+caches go under --cache-dir, default ~/Documents/claude/tmp/herd/<id>
+(durable scratch; nothing a run reads later goes in a temp directory).
 """
 from __future__ import annotations
 
@@ -14,6 +19,7 @@ import os
 import pathlib
 import re
 import subprocess
+import sys
 
 import fencecheck
 import gates
@@ -92,16 +98,18 @@ def task_gates(worktree: pathlib.Path, change: str) -> str:
     return gates
 
 
-def cache_env(id: str) -> str:
+def cache_env(id: str, cache_dir: str | None = None) -> str:
     """The cache locations for one build's ruff and mypy: the build worktree
     rejects cache writes, so every generated command carries them (proposal
     readonly-worktree-cache-dir)."""
-    return f"RUFF_CACHE_DIR=/tmp/herd-{id}-ruff MYPY_CACHE_DIR=/tmp/herd-{id}-mypy"
+    cache = cache_dir or str(pathlib.Path.home() / "Documents" / "claude" / "tmp" / "herd" / id)
+    return f"RUFF_CACHE_DIR={cache}/ruff MYPY_CACHE_DIR={cache}/mypy"
 
 
 def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str,
                    allowed: str, python: str, lead_pane: str, reviewer: str, has_xdist: bool,
-                   builder: str = "codex_build") -> str:
+                   builder: str = "codex_build", herd_python: str = sys.executable,
+                   cache_dir: str | None = None) -> str:
     gate_text = task_gates(worktree, change)
     main = main_checkout(worktree)
     sha = base_sha(worktree, base)
@@ -112,11 +120,11 @@ def build_briefing(*, id: str, worktree: pathlib.Path, branch: str, base: str, c
     steps_rule = (f"""- Apply sections 1 and 2 from `{steps_file}` in the worktree root, which holds the exact
   bytes of the verified reference; never copy fence text out of tasks.md, which is for
   reading. Apply with the shared applier from the worktree root:
-  `python3 {APPLY_STEPS} {steps_file} . T` for the tests (then observe RED), then
-  `python3 {APPLY_STEPS} {steps_file} . I`. It checks every anchor occurs exactly once
+  `{herd_python} {APPLY_STEPS} {steps_file} . T` for the tests (then observe RED), then
+  `{herd_python} {APPLY_STEPS} {steps_file} . I`. It checks every anchor occurs exactly once
   before writing and stops at the first step that does not fit, naming it. After a lead
   fold, restore the named file as the ruling says and re-apply only its steps with
-  `python3 {APPLY_STEPS} {steps_file} . --path <file>`. Do not write your own applier.
+  `{herd_python} {APPLY_STEPS} {steps_file} . --path <file>`. Do not write your own applier.
 """ if (worktree / steps_file).exists() else "")
     return f"""# BUILD BRIEFING — #{id} ({change})
 
@@ -135,16 +143,16 @@ Branch `{branch}`, cut from {base} ({sha}). Do NOT touch `{main}`
   `PYTHONPATH=src {python} -B -m pytest <touched test file> -q --no-header -p no:cacheprovider`
 - ruff is on PATH. Linter caches cannot be written inside the worktree, so prefix
   every ruff and mypy command with the cache locations:
-  `{cache_env(id)} ruff check <paths>` and
-  `{cache_env(id)} PYTHONPATH=src {python} -m mypy`.
+  `{cache_env(id, cache_dir)} ruff check <paths>` and
+  `{cache_env(id, cache_dir)} PYTHONPATH=src {python} -m mypy`.
 - {xdist}
-- Write temporary files into the worktree root, never `/tmp` (the linter caches above are
+- Write temporary files into the worktree root, never outside it (the linter caches above are
   the one exception), and name them `SCRATCH-<anything>`;
   the reviewer's change list ignores those and flags any other stray file.
 {sandbox}
 ## Measured gates (your run's COUNTS must match)
 
-Check each with `python3 {GATES} match "<expected line>" <output file>`: it prints
+Check each with `{herd_python} {GATES} match "<expected line>" <output file>`: it prints
 MATCH, or the counts that differ. pytest's warnings and wall time do not count.
 
 {gate_text}
@@ -163,13 +171,15 @@ byte for byte.
 ## Rules
 
 - Tests first. Do section 1, run the touched tests, SEE THEM FAIL (RED), and
-  save the tail. Only then do section 2 and reach GREEN.
+  save the output to a file (`<command> > SCRATCH-red.txt 2>&1`). Only then do
+  section 2 and reach GREEN, saved the same way (`> SCRATCH-green.txt 2>&1`):
+  `gates.py match` reads these files and the handoff quotes their tails.
 - Anchors are quoted text. If an anchor does not match exactly once, STOP and
   send BLOCKED — do not guess.
 {steps_rule}- Never loosen, delete, or skip an assertion to make a test pass.
 - Allowed files (edit nothing else):
 {allowed}
-- Mutation drives (section 3): run `python3 {MUTATE} openspec/changes/{change}/tasks.md .`
+- Mutation drives (section 3): run `{herd_python} {MUTATE} openspec/changes/{change}/tasks.md .`
   after GREEN, with no test run going in this worktree. It drives each one
   in turn, restores every file, and checks the tree is unchanged; paste its
   output into the handoff. Do not hand-edit mutations. A SURVIVED, VOID or
@@ -181,12 +191,12 @@ byte for byte.
 2. RED tail and GREEN tail (literal). After a lead fold, keep the pre-fold RED tails and add one
    line saying they were not re-observed after the fold; the lead re-observes RED in scratch.
 3. Full-suite tail, VERBATIM (you run the full suite once per build-state).
-4. The `python3 {GATES} match` MATCH line for every pytest count gate (RED, GREEN,
+4. The `{herd_python} {GATES} match` MATCH line for every pytest count gate (RED, GREEN,
    each touched file, the full suite) — not the raw tail; ruff and mypy last
    lines; every grep gate's output; the fence check's output —
-   `python3 {FENCECHECK} openspec/changes/{change}/tasks.md .` must print
+   `{herd_python} {FENCECHECK} openspec/changes/{change}/tasks.md .` must print
    `FENCES OK (<n> steps)`; any other line is a deviation to fix before review.
-5. `git diff --stat`.
+5. `git diff --stat` and `git status --short` (the stat leaves out untracked new files).
 6. Sibling sweep result, if tasks.md asks for one.
 7. Mutation log: name, KILLED/SURVIVED, the observed FAILED line.
 8. Every assertion in this handoff NOT backed by a tool result you ran.
@@ -194,10 +204,13 @@ byte for byte.
 
 ## Coordination (run these literally, from the worktree root)
 
+Before round 1, write `HANDOFF-{id}.md` (above): the reviewer reads it first, and
+a missing handoff is a round-1 finding.
+
 Review round N (N = 1, 2): make the per-round prompt, then send it.
 
     sed -e "s/ROUND_N/N/g" -e "s/RULINGS_PLACEHOLDER/none/" CODEX-PROMPT-{id}.md > CODEX-PROMPT-{id}-round-N.md
-    python3 {DISPATCH} {reviewer} --file CODEX-PROMPT-{id}-round-N.md
+    {herd_python} {DISPATCH} {reviewer} --file CODEX-PROMPT-{id}-round-N.md
 
 (Replace the N in the sed and the file names with the round number. If the
 lead gave you a ruling, put its sentence in place of `none`.) The command
@@ -229,7 +242,7 @@ When something costs you time — a wrong instruction, a wait, a command that
 failed for a reason the briefing could have prevented — record one line and
 carry on (it feeds the post-run review; it is not a message to the lead):
 
-    python3 {RUNLOG} add friction --repo {worktree} --issue {id} --agent {builder} --text "<what cost you time, and how long>"
+    {herd_python} {RUNLOG} add friction --repo {worktree} --issue {id} --agent {builder} --text "<what cost you time, and how long>"
 """
 
 
@@ -262,29 +275,30 @@ CODEX_BUILDER_SANDBOX = """- Sandbox (Codex): request escalated permissions on t
 
 
 def build_reviewer_prompt(*, id: str, worktree: pathlib.Path, branch: str, base: str, change: str, python: str,
-                          lead_pane: str, reviewer: str, **_: object) -> str:
+                          lead_pane: str, reviewer: str, herd_python: str = sys.executable,
+                          cache_dir: str | None = None, **_: object) -> str:
     w = worktree
     sha = base_sha(worktree, base)
     sandbox = f"\n{CODEX_SANDBOX}\n" if reviewer.startswith("codex") else ""
     return f"""You are the REVIEWER for herd build #{id}, review round ROUND_N. Do NOT edit any file except your review file. Do NOT commit.
 
 Worktree (the build under review): {w}
-Branch {branch}, base {base} at {sha} (the build is uncommitted). List what changed with `python3 {GATES} manifest {w} {sha} --allowed {w}/ALLOWED-{id}.txt` — it includes untracked files, and every OUTSIDE ALLOWED line is a finding. Read the changes with `git -C {w} diff {sha}` plus each untracked file the manifest lists.
+Branch {branch}, base {base} at {sha} (the build is uncommitted). List what changed with `{herd_python} {GATES} manifest {w} {sha} --allowed {w}/ALLOWED-{id}.txt` — it includes untracked files, and every OUTSIDE ALLOWED line is a finding. Read the changes with `git -C {w} diff {sha}` plus each untracked file the manifest lists.
 Spec: {w}/openspec/changes/{change}/ (proposal.md, design.md if present, specs/, tasks.md). The spec directory itself is part of the change, not a finding.
 Handoff: {w}/HANDOFF-{id}.md — it carries the full-suite tail verbatim; do NOT re-run the full suite unless that tail is missing or contradicts the gate in tasks.md section 0.
 Lead rulings in force: RULINGS_PLACEHOLDER
 {sandbox}
 Do this:
 1. Read the spec, then the handoff, then the diff.
-2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -B -m pytest <touched test files> -q --no-header -p no:cacheprovider`, plus the ruff, mypy and grep gates in tasks.md, each ruff and mypy command prefixed `{cache_env(id)}`. Record the commands and their last lines.
-3. Check the build against tasks.md: the fences are byte-exact reference text, so run `python3 {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — a line starting `{fencecheck.OK}` (it prints `{fencecheck.OK} (<n> steps)`) is success, and every other line it prints is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; root files matching {", ".join(f"`{p}`" for p in gates.COORDINATION)} are coordination files, and `openspec/changes/{change}/` is the change's own spec copy, allowed by the ALLOWED file: neither is a finding.
-4. Re-drive two mutations of your choice on a scratch copy, which never touches the build: `python3 {MUTATE} {w}/openspec/changes/{change}/tasks.md {w} --scratch --only "<full name>,<full name>"` (the full section-3 labels, quoted). A result that differs from the handoff's mutation log is a finding.
+2. Run the TOUCHED test files yourself from the worktree root: `cd {w} && PYTHONPATH=src {python} -B -m pytest <touched test files> -q --no-header -p no:cacheprovider`, plus the ruff, mypy and grep gates in tasks.md, each ruff and mypy command prefixed `{cache_env(id, cache_dir)}`. Record the commands and their last lines.
+3. Check the build against tasks.md: the fences are byte-exact reference text, so run `{herd_python} {FENCECHECK} {w}/openspec/changes/{change}/tasks.md {w}` — a line starting `{fencecheck.OK}` (it prints `{fencecheck.OK} (<n> steps)`) is success, and every other line it prints is a finding (step, file, why); do not re-check fences by eye. Any edit to a file outside the allowed list is a finding; root files matching {", ".join(f"`{p}`" for p in gates.COORDINATION)} are coordination files, and `openspec/changes/{change}/` is the change's own spec copy, allowed by the ALLOWED file: neither is a finding.
+4. Re-drive two mutations of your choice on a scratch copy, which never touches the build: `{herd_python} {MUTATE} {w}/openspec/changes/{change}/tasks.md {w} --scratch --only "<full name>,<full name>"` (the full section-3 labels, quoted). A result that differs from the handoff's mutation log is a finding.
 5. If a CONFIRMED finding requires changing a byte-exact fence, tag it "in the fence"; never mark it FOLDED while unresolved. These unresolved findings prevent REVIEW CLEAN. Count all unresolved confirmed findings and end with `FINDINGS: <n> (spec)` when any are in the fence.
 6. Report ONLY CONFIRMED defects — ones you reproduced or can show at file:line — each with an exact fix. Do not propose work the proposal's Non-goals exclude, new subsystems, persistence, or refactors.
 
 Write {w}/REVIEW-{id}-round-ROUND_N.md: what you ran (commands + last lines), what you checked, then numbered findings. End the file with exactly one sentinel line: `FINDINGS: <n>`, `FINDINGS: <n> (spec)`, or `REVIEW CLEAN`. A clean review still lists what it ran.
 Reply in chat with only the path and the sentinel. If and only if the sentinel is REVIEW CLEAN, also run: herdr agent prompt {lead_pane} "REVIEW CLEAN for {id} after ROUND_N rounds"
-If something in this prompt or the environment cost you time, record one line (not a message to anyone): python3 {RUNLOG} add friction --repo {w} --issue {id} --agent {reviewer} --text "<what cost you time, and how long>"
+If something in this prompt or the environment cost you time, record one line (not a message to anyone): {herd_python} {RUNLOG} add friction --repo {w} --issue {id} --agent {reviewer} --text "<what cost you time, and how long>"
 """  # noqa: E501
 
 
@@ -295,13 +309,15 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--lead-pane")
     ap.add_argument("--reviewer", default="codex_review")
     ap.add_argument("--builder", default="codex_build")
+    ap.add_argument("--herd-python", default=sys.executable)
+    ap.add_argument("--cache-dir")
     a = ap.parse_args(argv)
     w = pathlib.Path(a.worktree)
     python = find_python(w)
     args = dict(id=a.id, worktree=w, branch=a.branch, base=a.base, change=a.change,
                 allowed=pathlib.Path(a.allowed_file).read_text().rstrip(),
                 python=python, lead_pane=resolve_lead_pane(a.lead_pane), reviewer=a.reviewer, builder=a.builder,
-                has_xdist=has_xdist(python))
+                has_xdist=has_xdist(python), herd_python=a.herd_python, cache_dir=a.cache_dir)
     briefing = build_briefing(**args)
     reviewer_prompt = build_reviewer_prompt(**args)
     (w / f"ALLOWED-{a.id}.txt").write_text(args["allowed"] + f"\n  - `openspec/changes/{a.change}/`\n")
