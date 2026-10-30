@@ -124,3 +124,72 @@ def test_the_baseline_suite_runs_in_its_own_clean_worktree():
     gates = paragraph(SKILL.read_text(), "- **Measure every gate before writing its expectation")
     assert "in its own clean worktree cut from the base commit (`base-<id>`)" in gates
     assert "never in the pre-execution tree or any worktree you will edit" in gates
+
+
+CARDS = SKILL.parent / "cards"
+
+
+def test_an_agent_starts_in_a_worktree_only_after_the_pane_cds_there():
+    # Path A #113: `herdr agent start` has no --cwd, and the first attempt started nothing.
+    start = paragraph(SKILL.read_text(), "**A Claude or pi agent starts where its pane already is.**")
+    assert "`herdr agent start` has no `--cwd`" in start
+    assert '`herdr pane run <pane> "cd <worktree>"`' in start
+    assert "`herdr agent list`" in start
+
+
+def test_each_shell_pane_runs_one_agents_commands_one_at_a_time():
+    # Path A #113: a long local Spark run in a shared shell pane held a helper's commands for over an hour.
+    panes = paragraph(SKILL.read_text(), "**One shell pane per long command.**")
+    assert "the lead never types into a helper's pane" in panes
+    assert "`herdr pane read <pane>`" in panes
+    assert "never queue a command behind another" in panes
+    assert "`logs/<helper>/`" in panes
+    assert "until grep -q EXIT= <log>; do sleep 5; done" in panes
+
+
+def test_an_offloaded_gate_runs_on_a_box_with_its_own_log():
+    # Path A #113: local Apache Spark could not start in a Claude pane; every briefing needed a hand-written note.
+    text = SKILL.read_text()
+    gate = paragraph(text, "**Offloaded gates (Path A #113).**")
+    assert "`offloaded: <box>, log <path>`" in gate
+    assert "killer test id" in gate
+    assert "Fold every finding before re-running" in gate
+    roster = " ".join(text[text.index("## Roster"): text.index("## Before an unattended run")].split())
+    assert "home LAN" in roster and "never by switching tailnets" in roster
+
+
+def test_the_lead_makes_a_stack_merge_and_a_fresh_reviewer_reviews_it():
+    # Path A #117, #118: the builder cannot author a merge commit.
+    merge = paragraph(SKILL.read_text(), "- **A merge commit in a stack (Path A #117, #118).**")
+    assert "The lead makes the merge" in merge
+    assert "a fresh build reviewer reviews" in merge
+    assert "whether it may `git add`" in merge
+    assert "upstream rename" in merge
+    assert "never in the candidate worktree" in merge
+    assert "`fencecheck: not applicable`" in merge
+    assert "nonzero pass count" in merge
+
+
+def test_the_skill_runs_mkbrief_with_the_herd_interpreter():
+    text = " ".join(SKILL.read_text().split())
+    assert "--herd-python <herd venv python>" in text and "--cache-dir <writable dir>" in text
+
+
+def test_a_helper_brief_names_each_killer_by_test_id():
+    helpers = paragraph(SKILL.read_text(), "- **Helper briefs (Path A #113, #117).**")
+    assert "test node id" in helpers and "never a file" in helpers
+    assert "known red" in helpers
+    assert "edits the fold file itself" in helpers
+
+
+def test_the_build_reviewer_card_covers_a_review_with_no_fences():
+    card = (CARDS / "build-reviewer.md").read_text()
+    assert "`<herd>/tools/fencecheck.py`" in card
+    assert "`fencecheck: not applicable`" in card
+    assert "already at the base" in card
+
+
+def test_the_plan_reviewer_card_asks_for_adversarial_values():
+    card = (CARDS / "plan-reviewer.md").read_text()
+    for value in ("None", "NaN", "infinity", "`Decimal(\"NaN\")`", "a string", "a bool"):
+        assert value in card, value

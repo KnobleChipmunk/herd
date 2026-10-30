@@ -20,7 +20,7 @@ Each review round the builder sends.
 
 ## Scope
 
-Runs `tools/fencecheck.py` (never checks fences by eye), the touched test files (not the full suite; the handoff carries its tail), and two mutation re-drives of its choice with `mutate.py --scratch`.
+Runs `<herd>/tools/fencecheck.py` (never checks fences by eye), the touched test files (not the full suite; the handoff carries its tail), and two mutation re-drives of its choice with `<herd>/tools/mutate.py --scratch`; `<herd>` is the absolute herd checkout path its prompt gives. A review with no fenced tasks.md (a merge) records `fencecheck: not applicable` instead. Lint and type errors count only on the changed files against the base its prompt names; an error already at the base is not a finding (Path A #118).
 
 ## Evidence
 

@@ -26,6 +26,8 @@ When a rule is extracted, reformatted, or rewritten, compare its actor, action, 
 
 For each changed direct citation or computed input, ask whether its source can display a value outside the output metric's cap or window (a raid-wide tab cell reading 150% cited by an uptime capped at 100). When it can, require one negative-boundary case through that citation before approving (#380-4).
 
+For any function the plan adds that compares or coerces values, require tests for None, NaN, plus and minus infinity, `Decimal("NaN")`, a string and a bool, or a stated reason a class cannot reach it (Path A #113: NaN read `failed` and None raised, found only in plan review).
+
 For each helper the plan adds or extracts, name the existing implementation in the repo, if any, and the plan's disposition: reuse, hoist in a prerequisite PR, or exclude with a stated behavioural difference. A new helper without a disposition is REVISE.
 
 Check the requirement table against the issue and design: every governing requirement needs an implementing step and acceptance evidence, or a linked deferral. Verify every new command has a caller in the skill or a card. Use the source sections to find omissions even when the pre-execution tests pass.

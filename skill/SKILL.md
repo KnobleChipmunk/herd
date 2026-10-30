@@ -68,6 +68,10 @@ reference, at about three times pi's steps per minute. It needs
 Enter after `/new` (Codex opens a checkout picker). pi stays the fallback,
 on the same model.
 
+In this profile, an offloaded gate (see "Offloaded gates") runs on the
+operator's DGX Spark box, reached over the home LAN, never by switching
+tailnets (operator rule, Path A #113).
+
 Load the `herdr` skill first; the `herdr` CLI is the authority on syntax.
 `test "${HERDR_ENV:-}" = 1` or stop — this skill does not work outside Herdr.
 
@@ -213,7 +217,30 @@ herdr agent start codex_plan_reviewer --kind codex --pane <slot3> -- -m gpt-6-as
 ```
 
 The builder starts per build with `--cd` set to that build's worktree: restart
-it (`/quit`, then `agent start`) for the next build. Status lines: the
+it (`/quit`, then `agent start`) for the next build.
+
+**A Claude or pi agent starts where its pane already is.** `herdr agent
+start` has no `--cwd`, and `--cd` is a Codex flag. To start one in a new
+worktree, run `herdr pane run <pane> "cd <worktree>"` first, then `agent
+start`, then confirm in `herdr agent list` that the agent is live in that
+pane before prompting it: on Path A #113 the first attempt started nothing
+and printed no error.
+
+**One shell pane per long command.** A shell pane belongs to one agent:
+the lead never types into a helper's pane, and the helper reads it with
+`herdr pane read <pane>` for an idle prompt before each command. Run one
+command at a time and never queue a command behind another, least of all
+one that changes a file; a mutation is one command that applies, tests and
+restores (`mutate.py`, with `--scratch` when two helpers share a tree). A
+long run (a box suite, an `scp`) gets a pane of its own. Each helper writes
+its logs under `logs/<helper>/`, and nobody deletes there before the lead's
+final report. To wait on a run, start one background
+`until grep -q EXIT= <log>; do sleep 5; done` per log and let its
+notification drive the next step. On Path A #113 a long Spark run in a
+shared pane held a helper's commands for over an hour, and a queued script
+would have mutated the shared tree when the pane freed up.
+
+Status lines: the
 builder's names its model and effort; a pi fallback builder
 (`--kind pi -- --provider <provider> --model <model>`) reads
 `(<provider>) <model> • medium`; the reviewers' Codex
@@ -341,7 +368,21 @@ structure only (#40).
   (CLAUDE.md, One copy), and record each match with its disposition in the
   proposal: reuse, hoist in a prerequisite PR, or exclude with a stated
   behavioural difference. #502 found two duplicates after plan review, and
-  each cost a prerequisite PR and a rebuilt stack.
+  each cost a prerequisite PR and a rebuilt stack. Before a brief adds a hard
+  rule or widens what a function returns, grep the call sites: a rule that
+  makes an existing call site impossible, or a value a caller does not
+  branch on, is the lead's decision before the brief goes out (Path A #117).
+- **Helper briefs (Path A #113, #117).** When helper panes split
+  pre-execution (disjoint file lists in one tree worked), each brief carries
+  every mutation's before and after text from the plan from its first part
+  on, and names each killer as a test node id found by grepping for the
+  asserted value, never a file. It lists the known red tests and the tests
+  that skip at the starting tree (a skipped parity test proves nothing),
+  and, when a brief moves to a new tree, what that tree already contains.
+  Each part gets its own report file with a lead-owned index, and the
+  helper greps its report for placeholder tokens before DONE. When the lead
+  changes the plan mid-part, it edits the fold file itself, never a
+  separate chat note the helper must reconcile.
 - **Fences are generated, never hand-edited (#321).** The big code fences
   in tasks.md (new files, full test files) are REGENERATED from the
   verified scratch-worktree files after every fold, and byte-parity
@@ -373,7 +414,11 @@ structure only (#40).
   at the start of pre-execution, and its line says
   `(measured, <seconds> s)`: never the
   after count less the new tests (#482). `mkbrief.py` refuses a gates
-  section without that mark, or with `(derived`.
+  section without that mark, or with `(derived`. Write the RED and GREEN
+  commands as two separate fenced commands: RED carries
+  `--continue-on-collection-errors` (one import error otherwise hides the
+  other files), GREEN does not, and section 0 names any touched file that
+  shows no RED, such as a signature-only change (Path A #117).
 - **Prerequisite carve-out (#321).** When review or pre-execution finds a
   defect in shared code the change depends on: carve it into its OWN
   change (usually small tier) with its own spec and review loop; build it
@@ -382,6 +427,20 @@ structure only (#40).
   order (true merges make the stack safe); re-baseline every dependent
   gate and re-pin every fixture number that the prerequisite moved. The
   dependent tasks.md opens with a DEPENDS ON line naming it.
+- **A merge commit in a stack (Path A #117, #118).** The builder never
+  commits, so it cannot author a merge. The lead makes the merge in its own
+  worktree (a helper may resolve conflicts, and its brief says whether it
+  may `git add` resolved files), and a fresh build reviewer reviews the
+  staged merge. The merge brief lists every upstream rename or measurement
+  change that touches the merged files, from the branches' commit
+  messages; says when two shas name the same tree (`git diff <a> <b>` is
+  empty); and names the base for "changed files". The helper writes the
+  merge's mutations as a small tasks.md section 3 beside its report, so
+  `mutate.py --scratch` drives them; a hand-driven mutation counts only
+  after an unmutated baseline run with a nonzero pass count. The review file
+  goes in the run's reports folder, never in the candidate worktree, where
+  `git add -A` would commit it, and records `fencecheck: not applicable`
+  (a merge has no fences).
 - **Pre-existing shared-infra findings (#321).** A verified review finding
   in shared code that PREDATES the change and is not a dependency: file a
   GitHub issue with the evidence, correct any spec claim the finding
@@ -403,8 +462,11 @@ structure only (#40).
   (exact bytes; a fence cannot carry a mid-line fragment exactly, #482), and
   generates the briefing after APPROVE with
   `python3 <herd>/tools/mkbrief.py <id> <worktree> <branch> <pinned-base-sha>
-  <change-name> <allowed-files-file> --lead-pane <live-pane-id> --builder <pane name>`,
-  then prompts the builder. A `codex*` builder gets the sandbox escalation list. Put every measured gate, including the full-suite count,
+  <change-name> <allowed-files-file> --lead-pane <live-pane-id> --builder <pane name>
+  --herd-python <herd venv python> [--cache-dir <writable dir>]`, then prompts
+  the builder. Every herd tool command in the briefing runs under
+  `--herd-python`, never a bare `python3` a pane's hook blocks; pass
+  `--cache-dir` when the panes' sandbox cannot write `/tmp`. A `codex*` builder gets the sandbox escalation list. Put every measured gate, including the full-suite count,
   mutation names and fence step count, in tasks.md's single `## 0. Gates`
   section. The generator copies that section; it takes no separate gate file.
   After any spec amendment, regenerate the briefing from tasks.md before
@@ -544,6 +606,18 @@ checkout and a worktree — measure in the worktree and record that number.
 Once per repo, check whether `pytest-xdist` is installed; if not, say so
 in the briefing and do not add a dependency without asking the user.
 
+**Offloaded gates (Path A #113).** When a gate cannot run in a pane (local
+Apache Spark would not start in a Claude pane, and on a loaded Mac reached
+20 percent in 75 minutes), the lead runs it on a remote box and owns its
+log. tasks.md section 0 marks each such gate `offloaded: <box>, log <path>`
+beside its measured literal. The briefing has the builder and helpers run
+the other tests locally (`-k` for the new or changed cases) and list the
+offloaded tests and mutations for the box, each mutation with its killer
+test id. The handoff records `offloaded: lead-run, log <path>` for those
+items, and the lead adds the box tail before the final review. Fold every
+finding before re-running a box suite, and measure the base suite on the
+box in parallel with the reference.
+
 ## Briefing template (`BUILD-BRIEFING-<id>.md` in the worktree)
 
 Sections, in order: worktree path + branch + base + "do not touch <main
@@ -579,7 +653,14 @@ survivor; the file restored after EVERY drive, and the tree's git status
 checked unchanged afterwards (TREE CHANGED catches a test with side effects
 or a failed restore); it refuses to start while pytest is running in the
 tree. A SURVIVED result means the test or the mutation is wrong — fix the
-spec, never skip the drive.
+spec, never skip the drive. The output ends with one count line
+(`M1..M10: 10 KILLED, 0 SURVIVED, 0 other`) for the handoff.
+
+The drives run in a pinned environment. A repo whose tests need more at
+collection lists the names in `.herd-mutate-env` at its root, one per line
+(`NAME` passes the caller's value, `NAME=value` sets one); a declared name
+the caller lacks stops the drive rather than reading NOT RUN for every
+mutation (Path A #113, `AWS_DEFAULT_REGION`).
 
 ## Tickets (`tools/tickets.py`)
 
@@ -752,7 +833,11 @@ committing.
   `R="python3 tools/runlog.py"; $R add …` runs a command literally named
   `python3 tools/runlog.py`, and the error does not point at the missing
   run-log entry. In any shell, call every tool by its full path on the
-  command line (#33, #333).
+  command line (#33, #333). The same holds for the gate commands in
+  tasks.md: name the test files literally or in an array, never through an
+  unquoted `$FILES` (Path A #117: pytest saw one long path and `gates.py`
+  printed `got 0`; Path A #118: a hand-driven mutation's empty output read
+  like a pass).
 - Quote every heredoc, `<<'EOF'` and never `<<EOF`: an unquoted heredoc runs
   the backticks and `$(…)` in its body (#333).
 - Background a herdr prompt with the Bash tool's background mode, never
